@@ -19,8 +19,13 @@ func main() {
 	// Run the application and handle any errors
 	exitCode, err := cli.Run(appName)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-		fmt.Printf("Exit code: %d\n", exitCode)
+		fmt.Fprintf(os.Stderr, "[ERROR] - %v\n", err)
+		if exitCode == 0 {
+			fmt.Fprintf(os.Stderr, "[ERROR] - Wrong exit code %d!\n", exitCode)
+			exitCode = 1
+		} else {
+			fmt.Fprintf(os.Stderr, "[DEBUG] - Exit code: %d\n", exitCode)
+		}
 	}
 
 	// stop profiling and exit with the appropriate code

@@ -33,7 +33,7 @@ func Run(appName string) (int, error) {
 		kong.Description("Multi-format cross-platform file conversion and manipulation tool."),
 		kong.ConfigureHelp(kong.HelpOptions{
 			NoAppSummary:        false,              // show app usage summary
-			Summary:             true,               // show one-line summary of subcommands
+			Summary:             false,              // show all description in command
 			Compact:             true,               // show flags for current command only
 			Tree:                false,              // show command flat-list, instead of tree structure
 			FlagsLast:           true,               // print flags after args
