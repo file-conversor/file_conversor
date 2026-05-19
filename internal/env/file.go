@@ -10,6 +10,25 @@ import (
 	"strings"
 )
 
+func GetOutputFile(input, outputDir, outputSuffix, outputExt string) string {
+	var stemStrBuilder strings.Builder
+	stemStrBuilder.Grow(64)
+
+	stemStrBuilder.WriteString(FileStem(input))
+	stemStrBuilder.WriteString(outputSuffix)
+	stemStrBuilder.WriteString(outputExt)
+
+	return filepath.Join(outputDir, stemStrBuilder.String())
+}
+
+func ChangeFileExt(path, newExt string) string {
+	return path[:len(path)-len(FileExt(path))] + newExt
+}
+
+func ChangeFileStem(path, newStem string) string {
+	return filepath.Join(Dirname(path), newStem+FileExt(path))
+}
+
 func EnsureParentDirExists(path string) error {
 	dir := Dirname(path)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
