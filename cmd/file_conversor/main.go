@@ -15,13 +15,17 @@ const appName = "file_conversor"
 func main() {
 	// Profile the application if requested via environment variables
 	stopProfiling := initProfiling()
-	defer stopProfiling()
 
 	// Run the application and handle any errors
-	if err := cli.Run(appName); err != nil {
+	exitCode, err := cli.Run(appName)
+	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		os.Exit(1)
+		fmt.Printf("Exit code: %d\n", exitCode)
 	}
+
+	// stop profiling and exit with the appropriate code
+	stopProfiling()
+	os.Exit(exitCode)
 }
 
 // initProfiling checks environment variables to determine if profiling
@@ -32,6 +36,7 @@ func initProfiling() func() {
 	if _, exists := os.LookupEnv("FC_PROFILE"); !exists {
 		return func() {}
 	}
+	fmt.Fprintln(os.Stderr, "[profiling] starting ...")
 
 	// cpu profile
 	cpuPath := "cpu.prof"
@@ -73,5 +78,8 @@ func initProfiling() func() {
 			trace.Stop()
 			fTraceProf.Close()
 		}
+
+		// log profiling stopped
+		fmt.Fprintln(os.Stderr, "[profiling] stopped")
 	}
 }
