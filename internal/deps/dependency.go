@@ -52,14 +52,14 @@ func (d *Dependency) install(dry_run bool) error {
 }
 
 func (d *Dependency) promptUser() error {
-	fmt.Printf("[WARN] This feature requires '%s' to work properly, but '%s' is NOT installed.\n", d.Name, d.Name)
-	fmt.Printf("\n")
-	fmt.Printf("'%s' is available at %s , and it is licensed under %s. \n", d.Name, d.Homepage, d.License.String())
-	fmt.Printf("\n")
-	fmt.Printf("This tool can install '%s' for the current user. In that case, the following commands will be executed: \n", d.Name)
+	logger.Infof("This feature requires '%s' to work properly, but '%s' is NOT installed.\n", d.Name, d.Name)
+	logger.Infof("\n")
+	logger.Infof("'%s' is available at %s , and it is licensed under %s. \n", d.Name, d.Homepage, d.License.String())
+	logger.Infof("\n")
+	logger.Infof("This tool can install '%s' for the current user. In that case, the following commands will be executed: \n", d.Name)
 	d.install(true)
-	fmt.Printf("\n")
-	fmt.Printf("Do you accept '%s' license, and me to continue with the installation? (y/N): ", d.Name)
+	logger.Infof("\n")
+	logger.Infof("Do you accept '%s' license, and me to continue with the installation? (y/N): ", d.Name)
 	var answer string
 	if _, err := fmt.Scan(&answer); err != nil {
 		return fmt.Errorf("reading user input: %v", err)

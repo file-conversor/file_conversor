@@ -3,7 +3,6 @@
 package logger
 
 import (
-	"fmt"
 	"io"
 	"log/slog"
 )
@@ -26,7 +25,6 @@ func (f *Format) GetHandler(out io.Writer, opts slog.HandlerOptions) slog.Handle
 	case PrettyFormat:
 		handler = NewPrettyHandler(out, &opts)
 	default:
-		fmt.Printf("[WARN] Unknown log format '%s', defaulting to 'pretty' format", *f)
 		handler = NewPrettyHandler(out, &opts)
 	}
 	return handler

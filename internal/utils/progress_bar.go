@@ -26,21 +26,41 @@ type ProgressBarCfg struct {
 }
 
 func NewBarCfg(name string, total int64) ProgressBarCfg {
+	nameShort := name[:min(20, len(name))] // truncate name if too long
+	decorName := decor.Name(nameShort, decor.WC{
+		W: len(nameShort),
+		C: decor.DSyncWidthR,
+	})
 	if total <= 0 {
 		return ProgressBarCfg{
-			total:        -1, // -1 indicates spinner mode
-			style:        defaultSpinnerStyle(),
-			prependDecor: []decor.Decorator{decor.Name(name)},
-			appendDecor:  []decor.Decorator{},
+			total: -1, // -1 indicates spinner mode
+			style: defaultSpinnerStyle(),
+			prependDecor: []decor.Decorator{
+				decorName,
+			},
+			appendDecor: []decor.Decorator{
+				decor.OnComplete(
+					decor.OnAbort(decor.Name(""), " failed"), "   done",
+				),
+				decor.Name(" | ET: "),
+				decor.Elapsed(decor.ET_STYLE_MMSS, decor.WCSyncSpaceR),
+			},
 		}
 	}
 	return ProgressBarCfg{
-		total:        total,
-		style:        defaultBarStyle(),
-		prependDecor: []decor.Decorator{decor.Name(name)},
+		total: total,
+		style: defaultBarStyle(),
+		prependDecor: []decor.Decorator{
+			decorName,
+		},
 		appendDecor: []decor.Decorator{
-			decor.OnComplete(decor.EwmaETA(decor.ET_STYLE_GO, 30), ""), // 30 = EWMA age
-			decor.Percentage(decor.WC{W: 5}),
+			decor.OnComplete(
+				decor.OnAbort(decor.Percentage(decor.WC{W: 5}), " failed"), "   done",
+			),
+			decor.Name(" | ET: "),
+			decor.Elapsed(decor.ET_STYLE_MMSS, decor.WCSyncSpaceR),
+			decor.OnCompleteOrOnAbort(decor.Name(" | ETA: "), ""),
+			decor.OnCompleteOrOnAbort(decor.EwmaETA(decor.ET_STYLE_MMSS, 30, decor.WCSyncSpaceR), ""),
 		},
 	}
 }
@@ -58,7 +78,24 @@ func defaultBarStyle() mpb.BarStyleComposer {
 // defaultSpinnerStyle returns a default style for spinner bars.
 // The spinner will cycle through the specified characters to indicate progress.
 func defaultSpinnerStyle() mpb.SpinnerStyleComposer {
-	return mpb.SpinnerStyle("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+	return mpb.SpinnerStyle(
+		">==============<",
+		"=>============<=",
+		"==>==========<==",
+		"===>========<===",
+		"====>======<====",
+		"=====>====<=====",
+		"======>==<======",
+		"=======><=======",
+		"=======<>=======",
+		"======<==>======",
+		"=====<====>=====",
+		"====<======>====",
+		"===<========>===",
+		"==<==========>==",
+		"=<============>=",
+		"<==============>",
+	)
 }
 
 // ----------------------
@@ -87,7 +124,7 @@ func NewProgressBarMgr() *ProgressBarMgr {
 
 // adds a new progress bar / spinner with the given name and total work units,
 // and starts a goroutine to execute the provided work function.
-func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(ProgressIncrement) error) (*ProgressBarMgr, error) {
+func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(ProgressIncrement) error) *ProgressBarMgr {
 	// lock to ensure thread safety when adding bars,
 	// and to prevent adding bars after Wait() has been called
 	m.mu.Lock()
@@ -96,7 +133,7 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 	// if the progress manager has already been waited on, it means it's done
 	// and should not accept new bars
 	if m.finished {
-		return nil, fmt.Errorf("ProgressBarMgr: cannot add bars after Wait()")
+		panic("cannot add bar after Wait() has been called")
 	}
 
 	// create the progress bar or spinner and add to WaitGroup
@@ -115,21 +152,18 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 		// tickerDone is used to signal the ticker goroutine to stop when the work is done,
 		// workErr is used to capture any error from the work function, sending it to errChan
 		var workErr error
-		var tickerDone = make(chan struct{})
 		defer func() {
 			// Recover from panic (avoid crashing the whole process)
 			if r := recover(); r != nil {
 				workErr = fmt.Errorf("panic in work thread: %v", r)
 			}
 
-			// close tickerDone to signal the ticker goroutine to stop,
-			close(tickerDone)
-
 			// set the progress bar to complete (total) if work succeeded,
 			// or to current if there was an error
 			if workErr != nil {
-				bar.SetTotal(bar.Current(), true)
+				bar.Abort(false)
 			} else {
+				bar.SetCurrent(barCfg.total)
 				bar.SetTotal(barCfg.total, true)
 			}
 
@@ -139,23 +173,6 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 			// mark this bar as done in the WaitGroup
 			m.wg.Done()
 		}()
-
-		// update the progress bar at regular intervals if it's a spinner, to
-		// create the spinning effect
-		if barCfg.IsSpinner() {
-			ticker := time.NewTicker(100 * time.Millisecond)
-			go func() {
-				defer ticker.Stop() // safely stop ticker when exiting this goroutine
-				for {
-					select {
-					case <-ticker.C:
-						bar.Increment()
-					case <-tickerDone:
-						return // safely exit to prevent goroutine leak
-					}
-				}
-			}()
-		}
 
 		// start variable is solely for EWMA calculation
 		start := time.Now()
@@ -170,7 +187,7 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 			}
 		})
 	}()
-	return m, nil
+	return m
 }
 
 // Wait waits for all bars to complete and flushes the output.
@@ -178,21 +195,12 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 //	reports any error from the work functions of the bars, returning the
 //	first error encountered.
 func (m *ProgressBarMgr) Wait() error {
-	// check if already waited
-	m.mu.Lock()
-	if m.p == nil {
-		m.mu.Unlock()
-		return nil // already waited, nothing to do
-	}
-	m.finished = true // mark as finished to prevent adding new bars
-	m.mu.Unlock()
-
-	// wait for all bars to complete, then flush the output and release resources
-	m.p.Wait()
-
-	// lock to safely release resources and read error channels
+	// lock to prevent adding new bars while waiting
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	m.finished = true // mark as finished to prevent adding new bars
+	m.p.Wait()        // wait for all bars to complete
 
 	// collect errors from all bars, if any, and return a combined error
 	var errGrp error

@@ -7,6 +7,7 @@ import (
 
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/pdf"
+	"github.com/file-conversor/file_conversor/internal/utils"
 )
 
 // -------------
@@ -42,5 +43,10 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 	if err := env.EnsureParentDirExists(c.Output); err != nil {
 		return fmt.Errorf("output dir cannot be created: %w", err)
 	}
-	return pdf.Merge(c.Output, c.Inputs, c.Append)
+	p := utils.NewProgressBarMgr()
+	p.AddBarOrSpinner(utils.NewBarCfg(env.BaseName(c.Output), 0),
+		func(updateProgress utils.ProgressIncrement) error {
+			return pdf.Merge(c.Output, c.Inputs, c.Append)
+		})
+	return p.Wait()
 }

@@ -64,11 +64,11 @@ func (p *pkgMgr) update(dry_run bool) error {
 		return nil
 	}
 	if dry_run {
-		fmt.Printf("  $ %s\n", strings.Join(p.UpdateCmd, " "))
+		logger.Infof("  $ %s\n", strings.Join(p.UpdateCmd, " "))
 		return nil
 	}
 	if time.Since(p.lastUpdated) < 24*time.Hour {
-		logger.Warnf("[SKIP] Skipping update: pkg mgr '%s' was updated less than 24 hours ago ...\n", p.Name)
+		logger.Warnf("Skipping update: pkg mgr '%s' was updated less than 24 hours ago ...\n", p.Name)
 		return nil
 	}
 	if err := env.RunCommand(p.UpdateCmd...); err != nil {
@@ -85,9 +85,9 @@ func (p *pkgMgr) install(dry_run bool, postInstallCmds [][]string, preInstallCmd
 	}
 	if dry_run {
 		for _, cmd := range preInstallCmds {
-			fmt.Printf("  $ %s\n", strings.Join(cmd, " "))
+			logger.Infof("  $ %s\n", strings.Join(cmd, " "))
 		}
-		fmt.Printf("  $ %s %s\n", strings.Join(p.InstallCmd, " "), pkgName)
+		logger.Infof("  $ %s %s\n", strings.Join(p.InstallCmd, " "), pkgName)
 		return nil
 	}
 	if err := env.RunCommands(preInstallCmds...); err != nil {
@@ -153,7 +153,7 @@ var ScoopPkgMgr = &pkgMgr{
 	InstallPkgMgrFunc: func(dry_run bool) error {
 		cmdSlice := []string{"powershell", "-Command", "iwr -useb get.scoop.sh | iex"}
 		if dry_run {
-			fmt.Printf("  $ %s\n", strings.Join(cmdSlice, " "))
+			logger.Infof("  $ %s\n", strings.Join(cmdSlice, " "))
 			return nil
 		}
 		cmd := exec.Command(cmdSlice[0], cmdSlice[1:]...)

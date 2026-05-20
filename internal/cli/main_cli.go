@@ -41,7 +41,6 @@ func Run(appName string) (int, error) {
 			NoExpandSubcommands: true,               // don't expand subcommands in help
 			WrapUpperBound:      0,                  // wrapping of help text
 		}),
-		kong.UsageOnError(),
 		kong.Exit(func(code int) {
 			exitCode = code
 		}),

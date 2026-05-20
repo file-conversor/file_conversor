@@ -3,7 +3,6 @@
 package logger
 
 import (
-	"fmt"
 	"log/slog"
 )
 
@@ -27,7 +26,6 @@ func (l *Level) Get() slog.Level {
 	case ErrorLevel:
 		return slog.LevelError
 	default:
-		fmt.Printf("[WARN] Unknown log level '%s', defaulting to 'info' level", *l)
 		return slog.LevelInfo
 	}
 }
