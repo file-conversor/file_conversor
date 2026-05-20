@@ -28,11 +28,8 @@ func (c *PdfMergeCLI) AfterApply() error {
 			return fmt.Errorf("input file not a PDF: %s", input)
 		}
 		isequal, err := env.IsEqualPath(input, c.Output)
-		if err != nil {
-			return fmt.Errorf("check input == output fail: %w", err)
-		}
-		if isequal {
-			return fmt.Errorf("input == output: %s", input)
+		if err != nil || isequal {
+			return fmt.Errorf("input == output: %w", err)
 		}
 	}
 	return nil
