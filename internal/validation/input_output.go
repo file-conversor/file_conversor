@@ -8,6 +8,22 @@ import (
 	"github.com/file-conversor/file_conversor/internal/env"
 )
 
+// check if input exists
+func InputFileExists(acceptStdin bool, inputs ...string) error {
+	for _, input := range inputs {
+		if input == "-" {
+			if !acceptStdin {
+				return fmt.Errorf("stdin is not allowed for this operation")
+			}
+			continue // skip stdin since it's not an actual file
+		}
+		if !env.FileExists(input) {
+			return fmt.Errorf("input file does not exist: %s", input)
+		}
+	}
+	return nil
+}
+
 // Checks if the output file is not the same as any of the input files
 func InputOutputNotEqual(output string, inputs ...string) error {
 	for _, input := range inputs {
@@ -32,8 +48,11 @@ func InputFileExt(inputs []string, allowedExts ...string) error {
 
 // Checks if the output file can be overwritten
 // (exists and not a directory, or doesn't exist)
-func OutputFileOverwritable(output string, overwrite bool) error {
+func OutputFileOverwritable(acceptStdout bool, output string, overwrite bool) error {
 	if output == "-" {
+		if !acceptStdout {
+			return fmt.Errorf("stdout is not allowed for this operation")
+		}
 		return nil // stdout can always be overwritten
 	}
 	if env.FileExists(output) && !overwrite {

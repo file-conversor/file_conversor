@@ -22,11 +22,11 @@ type MainCLI struct {
 	Pdf PdfCLI `cmd:"" help:"PDF conversion and manipulation commands."`
 
 	// Flags :
-	Quiet      bool `short:"Q" help:"Quiet output (show errors only)."`
-	Debug      bool `short:"D" help:"Debug output (show debug information)."`
-	NoProgress bool `short:"N" help:"No progress bars or spinners."`
-	Overwrite  bool `short:"O" help:"Overwrite output files."`
-	Install    bool `short:"I" help:"Install dependencies, if needed (no user prompts)."`
+	Quiet      bool `short:"Q" xor:"log" help:"Quiet output (show errors only)."`
+	Debug      bool `short:"D" xor:"log" help:"Debug output (show debug information)."`
+	NoProgress bool `short:"N"           help:"No progress bars or spinners."`
+	Overwrite  bool `short:"O"           help:"Overwrite output files."`
+	Install    bool `short:"I"           help:"Install dependencies, if needed (no user prompts)."`
 }
 
 // Run executes the main CLI logic.
@@ -59,6 +59,17 @@ func Run(appName string) (int, error) {
 			}
 		}),
 	)
+	// print a newline to separate error message
+	if terminate {
+		fmt.Fprintf(os.Stderr, "\n")
+	}
+
+	// if if TTY is not available, disable progress bars and spinners
+	// to avoid cluttering output with control characters
+	if !env.IsTTY() {
+		cli.NoProgress = true
+		cli.Quiet, cli.Debug = true, false
+	}
 
 	// setup logging
 	logFile, errLog := initLogging(appName, cli.Debug, cli.Quiet)

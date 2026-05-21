@@ -3,19 +3,17 @@
 package pdf
 
 import (
-	"fmt"
+	"os"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
 
 // Merge merges multiple PDF files into a single PDF file.
-func Merge(output string, inputs []string, append bool) error {
-	if len(inputs) < 1 {
-		return fmt.Errorf("pdf merge: requires at least one input file")
+func Merge(append bool, output string, inputs ...string) error {
+	if output == "-" {
+		return api.Merge("", inputs, os.Stdout, nil, false)
 	}
-	if output == "" {
-		return fmt.Errorf("pdf merge: output file is required")
-	}
+
 	if append {
 		return api.MergeAppendFile(inputs, output, false, nil)
 	}
