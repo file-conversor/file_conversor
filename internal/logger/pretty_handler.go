@@ -55,7 +55,11 @@ func (h *PrettyHandler) Handle(_ context.Context, r slog.Record) error {
 
 	logStrBuilder.WriteByte('[')
 	logStrBuilder.WriteString(lvl)
-	logStrBuilder.WriteString("] - ")
+	logStrBuilder.WriteByte(']')
+	if lvl == "INFO" {
+		logStrBuilder.WriteByte(' ')
+	}
+	logStrBuilder.WriteString(" - ")
 	logStrBuilder.WriteString(r.Message)
 	logStrBuilder.WriteString(attrsStrBuilder.String())
 

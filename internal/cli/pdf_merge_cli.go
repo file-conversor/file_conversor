@@ -3,11 +3,14 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/file-conversor/file_conversor/internal/env"
+	"github.com/file-conversor/file_conversor/internal/logger"
 	"github.com/file-conversor/file_conversor/internal/pdf"
-	"github.com/file-conversor/file_conversor/internal/utils"
+	"github.com/file-conversor/file_conversor/internal/progress"
+	"github.com/file-conversor/file_conversor/internal/validation"
 )
 
 // -------------
@@ -20,32 +23,43 @@ type PdfMergeCLI struct {
 	Append bool     `short:"a"                                 help:"Append to output file (no overwrite)."`
 }
 
-func (c *PdfMergeCLI) AfterApply() error {
-	if !env.IsFileExt(c.Output, ".pdf") {
-		return fmt.Errorf("output file not a PDF: %s", c.Output)
-	}
-	for _, input := range c.Inputs {
-		if !env.IsFileExt(input, ".pdf") {
-			return fmt.Errorf("input file not a PDF: %s", input)
-		}
-		isequal, err := env.IsEqualPath(input, c.Output)
-		if err != nil || isequal {
-			return fmt.Errorf("input == output: %w", err)
-		}
+func (c *PdfMergeCLI) Validate(ctx *MainCLI) error {
+	if err := errors.Join(
+		validation.OutputFileOverwritable(c.Output, ctx.Overwrite || c.Append),
+		validation.OutputFileExt(c.Output, ".pdf"),
+		validation.InputFileExt(c.Inputs, ".pdf"),
+		validation.InputOutputNotEqual(c.Output, c.Inputs...),
+	); err != nil {
+		return err
 	}
 	return nil
 }
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
-	if env.FileExists(c.Output) && !ctx.Overwrite && !c.Append {
-		return fmt.Errorf("output file already exists: %s", c.Output)
+	// validate arguments and flags
+	if err := c.Validate(ctx); err != nil {
+		return err
 	}
+
+	// ensure output directory exists
 	if err := env.EnsureParentDirExists(c.Output); err != nil {
 		return fmt.Errorf("output dir cannot be created: %w", err)
 	}
-	p := utils.NewProgressBarMgr()
-	p.AddBarOrSpinner(utils.NewBarCfg(env.BaseName(c.Output), 0),
-		func(updateProgress utils.ProgressIncrement) error {
+
+	// if no progress bars, just run the merge in a single thread and return any error
+	logger.Infof("Merging input files into '%s' (append: %t)\n", c.Output, c.Append)
+	if ctx.NoProgress {
+		tp := env.NewThreadPool(0)
+		tp.AddTask(func() error {
+			return pdf.Merge(c.Output, c.Inputs, c.Append)
+		})
+		return tp.Wait()
+	}
+
+	// progress bar with spinner style (since we don't know total pages in advance)
+	p := progress.NewProgressBarMgr()
+	p.AddBarOrSpinner(progress.NewBarCfg(env.BaseName(c.Output), 0),
+		func(updateProgress progress.ProgressIncrement) error {
 			return pdf.Merge(c.Output, c.Inputs, c.Append)
 		})
 	return p.Wait()

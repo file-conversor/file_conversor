@@ -1,10 +1,11 @@
-// internal/utils/progress_bar.go
+// internal/progress/progress_bar.go
 
-package utils
+package progress
 
 import (
 	"errors"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -113,7 +114,10 @@ type ProgressBarMgr struct {
 // NewProgressBarMgr creates a new ProgressBarMgr with the given style.
 func NewProgressBarMgr() *ProgressBarMgr {
 	var wg = &sync.WaitGroup{}
-	var p = mpb.New(mpb.WithWaitGroup(wg))
+	var p = mpb.New(
+		mpb.WithOutput(os.Stderr), // always write to stderr for progress bars
+		mpb.WithWaitGroup(wg),     // progress manager waits for all bars to finish
+	)
 
 	return &ProgressBarMgr{
 		wg:       wg,

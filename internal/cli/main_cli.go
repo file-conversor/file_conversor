@@ -22,15 +22,17 @@ type MainCLI struct {
 	Pdf PdfCLI `cmd:"" help:"PDF conversion and manipulation commands."`
 
 	// Flags :
-	Quiet     bool `short:"q" help:"Quiet output (show errors only)."`
-	Verbose   bool `short:"v" help:"Verbose output (show debug information)."`
-	Overwrite bool `short:"O" help:"Overwrite output files."`
-	Install   bool `short:"I" help:"Install dependencies, if needed (no user prompts)."`
+	Quiet      bool `short:"Q" help:"Quiet output (show errors only)."`
+	Debug      bool `short:"D" help:"Debug output (show debug information)."`
+	NoProgress bool `short:"N" help:"No progress bars or spinners."`
+	Overwrite  bool `short:"O" help:"Overwrite output files."`
+	Install    bool `short:"I" help:"Install dependencies, if needed (no user prompts)."`
 }
 
 // Run executes the main CLI logic.
 func Run(appName string) (int, error) {
 	// default exit code is 0 (success)
+	var terminate bool = false
 	var exitCode int = 0
 	var errGrp error = nil
 	var cli MainCLI
@@ -50,13 +52,16 @@ func Run(appName string) (int, error) {
 			WrapUpperBound:      0,                  // wrapping of help text
 		}),
 		kong.Exit(func(code int) {
+			terminate = true
 			exitCode = code
-			errGrp = fmt.Errorf("CLI parsing")
+			if exitCode != 0 {
+				errGrp = fmt.Errorf("CLI parsing")
+			}
 		}),
 	)
 
 	// setup logging
-	logFile, errLog := initLogging(appName, cli.Verbose, cli.Quiet)
+	logFile, errLog := initLogging(appName, cli.Debug, cli.Quiet)
 	if errLog != nil {
 		errGrp = errors.Join(errGrp, fmt.Errorf("logging setup: %w", errLog))
 	} else {
@@ -71,7 +76,7 @@ func Run(appName string) (int, error) {
 	}
 
 	// run CLI command, if parsing was successful
-	if errGrp == nil {
+	if errGrp == nil && !terminate {
 		errGrp = errors.Join(errGrp, ctx.Run(&cli))
 	}
 
@@ -79,9 +84,11 @@ func Run(appName string) (int, error) {
 	if errGrp != nil {
 		logger.Errorf("%v\n", errGrp)
 		if exitCode == 0 {
-			logger.Errorf("Wrong exit code %d", exitCode)
 			exitCode = UndefErrorExitCode // default error exit code
 		}
+		logger.Errorf("Exit Code %d\n", exitCode)
+	} else {
+		logger.Debugf("Exit Code %d\n", exitCode)
 	}
 	return exitCode, errGrp
 }
