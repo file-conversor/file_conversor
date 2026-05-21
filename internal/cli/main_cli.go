@@ -3,12 +3,18 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/alecthomas/kong"
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
+
+const UndefErrorExitCode = 1
+const PanicExitCode = 126
+const LoggingCleanExitCode = 127
 
 type MainCLI struct {
 	// Args:
@@ -25,9 +31,10 @@ type MainCLI struct {
 func Run(appName string) (int, error) {
 	// default exit code is 0 (success)
 	var exitCode int = 0
+	var errGrp error = nil
+	var cli MainCLI
 
 	// parse CLI arguments
-	var cli MainCLI
 	ctx := kong.Parse(&cli,
 		kong.Name(appName),
 		kong.Description("Multi-format cross-platform file conversion and manipulation tool."),
@@ -43,25 +50,43 @@ func Run(appName string) (int, error) {
 		}),
 		kong.Exit(func(code int) {
 			exitCode = code
+			errGrp = fmt.Errorf("CLI parsing")
 		}),
 	)
-	if exitCode != 0 {
-		return exitCode, fmt.Errorf("CLI parsing failed")
-	}
 
 	// setup logging
-	stopLogging, err := initLogging(appName, &cli)
-	if err != nil {
-		return 1, fmt.Errorf("init logging: %w", err)
+	stopLogging, errLog := initLogging(appName, cli.Verbose, cli.Quiet)
+	if errLog != nil {
+		errGrp = errors.Join(errGrp, fmt.Errorf("logging setup: %w", errLog))
+	} else {
+		defer func() {
+			if err := stopLogging(); err != nil {
+				err = fmt.Errorf("logging cleanup: %w", err)
+				errGrp = errors.Join(errGrp, err)
+				exitCode = LoggingCleanExitCode // special exit code for logging cleanup failure
+				fmt.Fprintf(os.Stderr, "[ERROR] - %v", err)
+			}
+		}()
 	}
-	defer stopLogging()
 
-	// run CLI
-	return exitCode, ctx.Run(&cli)
+	// run CLI command, if parsing was successful
+	if errGrp == nil {
+		errGrp = errors.Join(errGrp, ctx.Run(&cli))
+	}
+
+	// log any errors and ensure non-zero exit code if there was an error
+	if errGrp != nil {
+		logger.Errorf("%v\n", errGrp)
+		if exitCode == 0 {
+			logger.Errorf("Wrong exit code %d", exitCode)
+			exitCode = UndefErrorExitCode // default error exit code
+		}
+	}
+	return exitCode, errGrp
 }
 
-func initLogging(appName string, ctx *MainCLI) (func(), error) {
-	noop := func() {}
+func initLogging(appName string, verbose bool, quiet bool) (logger.StopLoggerFunc, error) {
+	noop := logger.DefaultStopLoggerFunc()
 	// setup logging
 	logfile, err := env.Logfile(appName)
 	if err != nil {
@@ -69,22 +94,21 @@ func initLogging(appName string, ctx *MainCLI) (func(), error) {
 	}
 	logCfg := logger.DefaultConfig(logfile)
 	logMode := "Normal"
-	if ctx.Verbose {
+	if verbose {
 		// set verbose logging to terminal
 		logMode = "Verbose"
 		logCfg.TerminalLevel = logger.DebugLevel
+		fmt.Fprintf(os.Stderr, "[DEBUG] - Logfile: %s\n", logfile)
 	}
-	if ctx.Quiet {
+	if quiet {
 		// set quiet logging to terminal
 		logMode = "Quiet"
 		logCfg.TerminalLevel = logger.ErrorLevel
 	}
-	file, err := logger.SetupLogger(logCfg)
+	stopLogger, err := logger.SetupLogger(logCfg)
 	if err != nil {
 		return noop, fmt.Errorf("logger setup: %w", err)
 	}
 	logger.Debugf("Log mode: %s\n", logMode)
-	return func() {
-		file.Close()
-	}, nil
+	return stopLogger, nil
 }
