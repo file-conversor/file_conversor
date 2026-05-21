@@ -5,6 +5,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/alecthomas/kong"
@@ -55,12 +56,12 @@ func Run(appName string) (int, error) {
 	)
 
 	// setup logging
-	stopLogging, errLog := initLogging(appName, cli.Verbose, cli.Quiet)
+	logFile, errLog := initLogging(appName, cli.Verbose, cli.Quiet)
 	if errLog != nil {
 		errGrp = errors.Join(errGrp, fmt.Errorf("logging setup: %w", errLog))
 	} else {
 		defer func() {
-			if err := stopLogging(); err != nil {
+			if err := logFile.Close(); err != nil {
 				err = fmt.Errorf("logging cleanup: %w", err)
 				errGrp = errors.Join(errGrp, err)
 				exitCode = LoggingCleanExitCode // special exit code for logging cleanup failure
@@ -85,8 +86,8 @@ func Run(appName string) (int, error) {
 	return exitCode, errGrp
 }
 
-func initLogging(appName string, verbose bool, quiet bool) (logger.StopLoggerFunc, error) {
-	noop := logger.DefaultStopLoggerFunc()
+func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
+	noop := io.NopCloser(nil)
 	// setup logging
 	logfile, err := env.Logfile(appName)
 	if err != nil {
@@ -105,10 +106,10 @@ func initLogging(appName string, verbose bool, quiet bool) (logger.StopLoggerFun
 		logMode = "Quiet"
 		logCfg.TerminalLevel = logger.ErrorLevel
 	}
-	stopLogger, err := logger.SetupLogger(logCfg)
+	logFile, err := logger.SetupLogger(logCfg)
 	if err != nil {
 		return noop, fmt.Errorf("logger setup: %w", err)
 	}
 	logger.Debugf("Log mode: %s\n", logMode)
-	return stopLogger, nil
+	return logFile, nil
 }
