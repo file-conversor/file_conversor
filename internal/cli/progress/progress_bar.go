@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -20,50 +21,51 @@ type ProgressIncrement func(int64)
 // ----------------------
 
 type ProgressBarCfg struct {
-	total        int64
-	style        mpb.BarFillerBuilder
-	prependDecor []decor.Decorator
-	appendDecor  []decor.Decorator
+	total   int64
+	style   mpb.BarFillerBuilder
+	options []mpb.BarOption
 }
 
-func NewBarCfg(name string, total int64) ProgressBarCfg {
+func NewBarCfg(name string, total int64, removeOnComplete bool) *ProgressBarCfg {
+	progressBarCfg := &ProgressBarCfg{}
+
 	nameShort := name[:min(20, len(name))] // truncate name if too long
-	decorName := decor.Name(nameShort, decor.WC{
-		W: len(nameShort),
-		C: decor.DSyncWidthR,
-	})
-	if total <= 0 {
-		return ProgressBarCfg{
-			total: -1, // -1 indicates spinner mode
-			style: defaultSpinnerStyle(),
-			prependDecor: []decor.Decorator{
-				decorName,
-			},
-			appendDecor: []decor.Decorator{
-				decor.OnComplete(
-					decor.OnAbort(decor.Name(""), " failed"), "   done",
-				),
-				decor.Name(" | ET: "),
-				decor.Elapsed(decor.ET_STYLE_MMSS, decor.WCSyncSpaceR),
-			},
-		}
+	prependDecor := []decor.Decorator{
+		decor.Name(nameShort, decor.WC{
+			W: len(nameShort),
+			C: decor.DSyncWidthR,
+		}),
 	}
-	return ProgressBarCfg{
-		total: total,
-		style: defaultBarStyle(),
-		prependDecor: []decor.Decorator{
-			decorName,
-		},
-		appendDecor: []decor.Decorator{
-			decor.OnComplete(
-				decor.OnAbort(decor.Percentage(decor.WC{W: 5}), " failed"), "   done",
-			),
-			decor.Name(" | ET: "),
-			decor.Elapsed(decor.ET_STYLE_MMSS, decor.WCSyncSpaceR),
+	appendDecor := []decor.Decorator{
+		decor.OnComplete(
+			decor.OnAbort(decor.Name(""), " failed"), "   done",
+		),
+		decor.Name(" | ET: "),
+		decor.Elapsed(decor.ET_STYLE_MMSS, decor.WCSyncSpaceR),
+	}
+
+	if total <= 0 {
+		progressBarCfg.total = -1 // spinner mode
+		progressBarCfg.style = defaultSpinnerStyle()
+	} else {
+		progressBarCfg.total = total // bar mode
+		progressBarCfg.style = defaultBarStyle()
+		appendDecor = append(appendDecor,
 			decor.OnCompleteOrOnAbort(decor.Name(" | ETA: "), ""),
 			decor.OnCompleteOrOnAbort(decor.EwmaETA(decor.ET_STYLE_MMSS, 30, decor.WCSyncSpaceR), ""),
-		},
+		)
 	}
+
+	progressBarCfg.options = append(progressBarCfg.options,
+		mpb.PrependDecorators(prependDecor...),
+		mpb.AppendDecorators(appendDecor...),
+	)
+	if removeOnComplete {
+		progressBarCfg.options = append(progressBarCfg.options,
+			mpb.BarRemoveOnComplete(),
+		)
+	}
+	return progressBarCfg
 }
 
 func (c *ProgressBarCfg) IsSpinner() bool {
@@ -104,31 +106,46 @@ func defaultSpinnerStyle() mpb.SpinnerStyleComposer {
 // ----------------------
 
 type ProgressBarMgr struct {
-	mu       sync.Mutex
-	wg       *sync.WaitGroup
+	// controls the maximum number of concurrent bars
+	maxWorkers  int
+	workersChan chan struct{}
+
+	// ensure thread safety when adding bars and waiting
+	mu sync.Mutex
+	wg *sync.WaitGroup
+
+	// progress container from mpb library
 	p        *mpb.Progress
 	errChans []chan error
 	finished bool
 }
 
 // NewProgressBarMgr creates a new ProgressBarMgr with the given style.
-func NewProgressBarMgr() *ProgressBarMgr {
+func NewProgressBarMgr(maxWorkers int) *ProgressBarMgr {
 	var wg = &sync.WaitGroup{}
 	var p = mpb.New(
 		mpb.WithOutput(os.Stderr), // always write to stderr for progress bars
 		mpb.WithWaitGroup(wg),     // progress manager waits for all bars to finish
 	)
+	var cpuCores = runtime.NumCPU()
+	if maxWorkers <= 0 || maxWorkers > cpuCores*2 {
+		maxWorkers = cpuCores * 2 // default to 2x CPU cores if invalid value provided
+	}
 
 	return &ProgressBarMgr{
-		wg:       wg,
-		p:        p,
-		finished: false,
+		maxWorkers:  maxWorkers,
+		workersChan: make(chan struct{}, maxWorkers),
+		wg:          wg,
+		p:           p,
+		finished:    false,
 	}
 }
 
 // adds a new progress bar / spinner with the given name and total work units,
 // and starts a goroutine to execute the provided work function.
-func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(ProgressIncrement) error) *ProgressBarMgr {
+func (m *ProgressBarMgr) AddBarOrSpinner(barCfg *ProgressBarCfg, work func(ProgressIncrement) error) *ProgressBarMgr {
+	m.workersChan <- struct{}{} // acquire a worker slot
+
 	// lock to ensure thread safety when adding bars,
 	// and to prevent adding bars after Wait() has been called
 	m.mu.Lock()
@@ -144,8 +161,7 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 	bar := m.p.New(
 		barCfg.total,
 		barCfg.style,
-		mpb.PrependDecorators(barCfg.prependDecor...),
-		mpb.AppendDecorators(barCfg.appendDecor...),
+		barCfg.options...,
 	)
 	m.wg.Add(1)
 
@@ -173,6 +189,9 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg ProgressBarCfg, work func(Progre
 
 			// report any error from the work function or panic to the error channel
 			errChan <- workErr
+
+			// release the worker slot
+			<-m.workersChan
 
 			// mark this bar as done in the WaitGroup
 			m.wg.Done()

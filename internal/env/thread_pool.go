@@ -56,9 +56,10 @@ func (tp *ThreadPool) AddTask(task func() error) {
 
 			// report any error from the work function or panic to the error channel
 			errChan <- workErr
+			// release the worker slot
+			<-tp.workersChan
 
-			tp.wg.Done()     // mark this task as done in the WaitGroup
-			<-tp.workersChan // release the worker slot
+			tp.wg.Done() // mark this task as done in the WaitGroup
 		}()
 
 		workErr = task() // execute the task and capture any error
@@ -84,7 +85,8 @@ func (tp *ThreadPool) Wait() error {
 		// close the error channel to prevent goroutine leaks
 		close(errChan)
 	}
-	tp.errChans = nil // clear errChans to release references and prevent memory leaks
+	tp.errChans = nil     // clear errChans to release references and prevent memory leaks
+	close(tp.workersChan) // close the workers channel to prevent goroutine leaks
 
 	return errGrp
 }

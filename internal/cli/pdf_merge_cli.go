@@ -5,10 +5,10 @@ package cli
 import (
 	"errors"
 
+	"github.com/file-conversor/file_conversor/internal/cli/progress"
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/logger"
 	"github.com/file-conversor/file_conversor/internal/pdf"
-	"github.com/file-conversor/file_conversor/internal/progress"
 	"github.com/file-conversor/file_conversor/internal/validation"
 )
 
@@ -41,24 +41,21 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 		return err
 	}
 
-	// merge function
-	mergeFunc := func() error {
-		return pdf.Merge(c.Append, c.Output, c.Inputs...)
-	}
-
 	// if no progress bars, just run the merge in a single thread and return any error
 	logger.Infof("Merging input files into '%s' (append: %t)\n", c.Output, c.Append)
 	if ctx.NoProgress {
 		tp := env.NewThreadPool(0)
-		tp.AddTask(mergeFunc)
+		tp.AddTask(func() error {
+			return pdf.Merge(c.Append, c.Output, c.Inputs...)
+		})
 		return tp.Wait()
 	}
 
 	// progress bar with spinner style (since we don't know total pages in advance)
-	p := progress.NewProgressBarMgr()
-	p.AddBarOrSpinner(progress.NewBarCfg(env.BaseName(c.Output), 0),
+	p := progress.NewProgressBarMgr(0)
+	p.AddBarOrSpinner(progress.NewBarCfg(env.BaseName(c.Output), 0, true),
 		func(updateProgress progress.ProgressIncrement) error {
-			return mergeFunc()
+			return pdf.Merge(c.Append, c.Output, c.Inputs...)
 		})
 	return p.Wait()
 }
