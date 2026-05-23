@@ -1,4 +1,4 @@
-// internal/env/file.go
+// internal/env/path.go
 
 package env
 
@@ -18,17 +18,6 @@ func EnsureParentDirExists(path string) error {
 		return err
 	}
 	return nil
-}
-
-func ToIoReadSeeker(files ...*os.File) ([]io.ReadSeeker, error) {
-	ioReadSeekers := make([]io.ReadSeeker, len(files))
-	for i, f := range files {
-		if f == nil {
-			return nil, errors.New("nil file pointer cannot be converted to io.ReadSeeker")
-		}
-		ioReadSeekers[i] = f
-	}
-	return ioReadSeekers, nil
 }
 
 func MkdirAll(path string) error {
@@ -183,8 +172,23 @@ func FileExt(path string) string {
 	return filepath.Ext(path)
 }
 
+func PathExists(path string) bool {
+	if IsStdIO(path) {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func PathInfo(path string) (os.FileInfo, error) {
+	if IsStdIO(path) {
+		return nil, fmt.Errorf("cannot get file info for stdin/stdout")
+	}
+	return os.Stat(path)
+}
+
 func FileExists(path string) bool {
-	info, err := os.Stat(path)
+	info, err := PathInfo(path)
 	if err != nil {
 		return false
 	}
@@ -192,7 +196,7 @@ func FileExists(path string) bool {
 }
 
 func DirExists(path string) bool {
-	info, err := os.Stat(path)
+	info, err := PathInfo(path)
 	if err != nil {
 		return false
 	}
@@ -224,9 +228,9 @@ func IsFileExt(path string, ext ...string) bool {
 // checks if is stdin or stdout
 func IsStdIO(paths ...string) bool {
 	for _, path := range paths {
-		if path != "-" {
-			return false
+		if path == "-" {
+			return true
 		}
 	}
-	return true
+	return false
 }

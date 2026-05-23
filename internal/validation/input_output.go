@@ -3,6 +3,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -28,14 +29,22 @@ func CheckOutputStdout(allow bool, paths ...string) error {
 	return nil
 }
 
+// check input not empty
+func InputNotEmpty(paths ...string) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("input cannot be empty")
+	}
+	return nil
+}
+
 // check if input exists
-func InputFileExists(inputs ...string) error {
+func InputPathExists(inputs ...string) error {
 	for _, input := range inputs {
 		if input == "-" {
 			continue // skip stdin since it's not an actual file
 		}
-		if !env.FileExists(input) {
-			return fmt.Errorf("input file does not exist: %s", input)
+		if !env.PathExists(input) {
+			return fmt.Errorf("input path does not exist: %s", input)
 		}
 	}
 	return nil
@@ -57,10 +66,11 @@ func InputOutputNotEqual(output string, inputs ...string) error {
 
 // Checks if all input files have an allowed extension
 func InputFileExt(inputs []string, allowedExts ...string) error {
+	var errGrp error
 	for _, input := range inputs {
-		return OutputFileExt(input, allowedExts...)
+		errGrp = errors.Join(errGrp, OutputFileExt(input, allowedExts...))
 	}
-	return nil
+	return errGrp
 }
 
 // Checks if the output file can be overwritten

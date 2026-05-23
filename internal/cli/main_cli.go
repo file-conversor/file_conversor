@@ -14,6 +14,7 @@ import (
 )
 
 const UndefErrorExitCode = 1
+const CliParserExitCode = 80
 const PanicExitCode = 126
 const LoggingCleanExitCode = 127
 
@@ -37,6 +38,10 @@ func Run(appName string) (int, error) {
 	var errGrp error = nil
 	var cli MainCLI
 
+	// force flush stdout, stderr
+	defer os.Stdout.Sync()
+	defer os.Stderr.Sync()
+
 	// parse CLI arguments
 	ctx := kong.Parse(&cli,
 		kong.Name(appName),
@@ -53,8 +58,8 @@ func Run(appName string) (int, error) {
 		}),
 		kong.Exit(func(code int) {
 			terminate = true
-			exitCode = code
-			if exitCode != 0 {
+			if code != 0 {
+				exitCode = CliParserExitCode
 				errGrp = fmt.Errorf("CLI parsing")
 			}
 		}),
