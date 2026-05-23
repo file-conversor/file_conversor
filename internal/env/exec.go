@@ -9,6 +9,7 @@ import (
 	"strings"
 )
 
+// RunCommand runs a command and returns an error if it fails.
 func RunCommand(cmd ...string) error {
 	if len(cmd) == 0 {
 		return fmt.Errorf("empty command")
@@ -18,6 +19,7 @@ func RunCommand(cmd ...string) error {
 	return c.Run()
 }
 
+// RunCommands runs multiple commands sequentially and returns an error if any command fails.
 func RunCommands(cmds ...[]string) error {
 	for _, cmd := range cmds {
 		if len(cmd) == 0 {

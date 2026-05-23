@@ -44,7 +44,7 @@ func InputPathExists(inputs ...string) error {
 			continue // skip stdin since it's not an actual file
 		}
 		if !env.PathExists(input) {
-			return fmt.Errorf("input path does not exist: %s", input)
+			return fmt.Errorf("input path '%s' does not exist", input)
 		}
 	}
 	return nil

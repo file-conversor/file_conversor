@@ -1,6 +1,6 @@
-// internal/cli/custom_types.go
+// internal/cli/types/custom_types.go
 
-package cli
+package types
 
 import (
 	"fmt"

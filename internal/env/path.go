@@ -3,6 +3,7 @@
 package env
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -24,28 +25,27 @@ func MkdirAll(path string) error {
 	return os.MkdirAll(path, 0o755)
 }
 
-func CreateTempFile(pattern string, in io.Reader) (*os.File, func(), error) {
-	noop := func() {}
-	// create tmp file
-	tmp, err := os.CreateTemp("", pattern)
+// read file lines into a slice of strings (trims whitespace and ignores empty lines)
+func ReadLines(path string, processLine func(string)) error {
+	f, err := os.Open(path)
 	if err != nil {
-		return nil, noop, fmt.Errorf("create tmp file: %w", err)
+		return fmt.Errorf("open file: %w", err)
 	}
-	callback := func() {
-		tmp.Close()
-		os.Remove(tmp.Name())
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if line != "" {
+			processLine(line)
+		}
 	}
-	// copy input to tmp file
-	if _, err = io.Copy(tmp, in); err != nil {
-		callback()
-		return nil, noop, fmt.Errorf("copy to tmp file: %w", err)
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("scan file: %w", err)
 	}
-	// rewind to start so tmp reads from the beginning
-	if _, err = tmp.Seek(0, io.SeekStart); err != nil {
-		callback()
-		return nil, noop, fmt.Errorf("rewind tmp file: %w", err)
-	}
-	return tmp, callback, nil
+	return nil
 }
 
 // Copy src => dst, where src and dst can be file paths or "-" for stdin/stdout.
