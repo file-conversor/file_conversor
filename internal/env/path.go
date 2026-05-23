@@ -36,10 +36,11 @@ func MkdirAll(path string) error {
 }
 
 func CreateTempFile(pattern string, in io.Reader) (*os.File, func(), error) {
+	noop := func() {}
 	// create tmp file
 	tmp, err := os.CreateTemp("", pattern)
 	if err != nil {
-		return nil, nil, fmt.Errorf("create tmp file: %w", err)
+		return nil, noop, fmt.Errorf("create tmp file: %w", err)
 	}
 	callback := func() {
 		tmp.Close()
@@ -48,12 +49,12 @@ func CreateTempFile(pattern string, in io.Reader) (*os.File, func(), error) {
 	// copy input to tmp file
 	if _, err = io.Copy(tmp, in); err != nil {
 		callback()
-		return nil, nil, fmt.Errorf("copy to tmp file: %w", err)
+		return nil, noop, fmt.Errorf("copy to tmp file: %w", err)
 	}
 	// rewind to start so tmp reads from the beginning
 	if _, err = tmp.Seek(0, io.SeekStart); err != nil {
 		callback()
-		return nil, nil, fmt.Errorf("rewind tmp file: %w", err)
+		return nil, noop, fmt.Errorf("rewind tmp file: %w", err)
 	}
 	return tmp, callback, nil
 }

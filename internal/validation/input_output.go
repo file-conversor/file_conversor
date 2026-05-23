@@ -10,11 +10,13 @@ import (
 )
 
 func CheckInputStdin(allow bool, paths ...string) error {
-	if env.IsTTY(os.Stdin) {
-		return fmt.Errorf("stdin is empty - pipe data to app, or specify input files as arguments")
-	}
-	if env.IsStdIO(paths...) && !allow {
-		return fmt.Errorf("stdin is not allowed")
+	if env.IsStdIO(paths...) {
+		if !allow {
+			return fmt.Errorf("stdin is not allowed")
+		}
+		if env.IsTTY(os.Stdin) {
+			return fmt.Errorf("stdin is empty - pipe data to app, or specify input files as arguments")
+		}
 	}
 	return nil
 }

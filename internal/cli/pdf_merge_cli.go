@@ -19,10 +19,21 @@ import (
 type PdfMergeCLI struct {
 	Inputs []string `arg:""    required:"" default:"-" help:"Input PDF files (leave empty for stdin)."`
 	Output string   `short:"o" required:""             help:"Output PDF file (use - for stdout)."`
-	Append bool     `short:"a" optional:""             help:"Append to output file (not supported for stdout)."`
+	Append bool     `short:"a" optional:""             help:"Append to output file (no effect for stdout)."`
 }
 
-func (c *PdfMergeCLI) Validate(ctx *MainCLI) error {
+func (c *PdfMergeCLI) Help() string {
+	return `
+Example usage:
+  # Merge multiple PDF files into one
+  file_conversor pdf merge -o merged.pdf file1.pdf file2.pdf file3.pdf
+  
+  # Append PDF files from stdin to out.pdf file (if it don't exist, it will be created)
+  cat file1.pdf | file_conversor pdf merge -a -o out.pdf
+`
+}
+
+func (c *PdfMergeCLI) validate(ctx *MainCLI) error {
 	if err := errors.Join(
 		// validation for output file
 		validation.CheckOutputStdout(true, c.Output),
@@ -44,7 +55,7 @@ func (c *PdfMergeCLI) Validate(ctx *MainCLI) error {
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 	// parse and validate arguments and flags
-	if err := c.Validate(ctx); err != nil {
+	if err := c.validate(ctx); err != nil {
 		return err
 	}
 
