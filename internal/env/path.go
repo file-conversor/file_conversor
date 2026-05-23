@@ -4,6 +4,7 @@ package env
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -13,7 +14,7 @@ import (
 
 func EnsureParentDirExists(path string) error {
 	dir := Dirname(path)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	if err := MkdirAll(dir); err != nil {
 		return err
 	}
 	return nil
@@ -30,6 +31,70 @@ func ToIoReadSeeker(files ...*os.File) ([]io.ReadSeeker, error) {
 	return ioReadSeekers, nil
 }
 
+func MkdirAll(path string) error {
+	return os.MkdirAll(path, 0o755)
+}
+
+func CreateTempFile(pattern string, in io.Reader) (*os.File, func(), error) {
+	// create tmp file
+	tmp, err := os.CreateTemp("", pattern)
+	if err != nil {
+		return nil, nil, fmt.Errorf("create tmp file: %w", err)
+	}
+	callback := func() {
+		tmp.Close()
+		os.Remove(tmp.Name())
+	}
+	// copy input to tmp file
+	if _, err = io.Copy(tmp, in); err != nil {
+		callback()
+		return nil, nil, fmt.Errorf("copy to tmp file: %w", err)
+	}
+	// rewind to start so tmp reads from the beginning
+	if _, err = tmp.Seek(0, io.SeekStart); err != nil {
+		callback()
+		return nil, nil, fmt.Errorf("rewind tmp file: %w", err)
+	}
+	return tmp, callback, nil
+}
+
+// Copy src => dst, where src and dst can be file paths or "-" for stdin/stdout.
+// If dst == "", a temporary file will be created and its path returned
+func CopyFile(src, dst string) error {
+	var srcFile *os.File
+	var dstFile *os.File
+	var err error
+
+	switch src {
+	case "":
+		return fmt.Errorf("copy file - source path cannot be empty")
+	case "-":
+		srcFile = os.Stdin
+	default:
+		srcFile, err = os.Open(src)
+		if err != nil {
+			return fmt.Errorf("copy file - open src file: %v", err)
+		}
+		defer srcFile.Close()
+	}
+
+	switch dst {
+	case "":
+		return fmt.Errorf("copy file - destination path cannot be empty")
+	case "-":
+		dstFile = os.Stdout
+	default:
+		dstFile, err = os.Create(dst)
+		if err != nil {
+			return fmt.Errorf("copy file - create dst file: %v", err)
+		}
+		defer dstFile.Close()
+	}
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
 func CloseFiles(res ...*os.File) error {
 	var errGrp error
 	for _, f := range res {
@@ -43,33 +108,37 @@ func CloseFiles(res ...*os.File) error {
 	return errGrp
 }
 
-func OpenInputFiles(path ...string) ([]*os.File, []io.ReadSeeker, error) {
+func OpenInputFiles(path ...string) ([]*os.File, error) {
 	files := make([]*os.File, len(path))
 	for i, p := range path {
+		switch p {
+		case "":
+			return nil, fmt.Errorf("input file path cannot be empty")
+		case "-":
+			return nil, fmt.Errorf("cannot open stdin for reading - use os.Stdin directly instead")
+		}
 		f, err := os.Open(p)
 		if err != nil {
 			// Close any files that were successfully opened
 			CloseFiles(files...)
-			return nil, nil, err
+			return nil, err
 		}
 		files[i] = f
 	}
-	ioReadSeekers, err := ToIoReadSeeker(files...)
-	if err != nil {
-		CloseFiles(files...)
-		return nil, nil, err
-	}
-	return files, ioReadSeekers, nil
+	return files, nil
 }
 
 func OpenOutputFile(path string, append bool) (*os.File, error) {
-	if err := EnsureParentDirExists(path); err != nil {
-		return nil, err
+	switch path {
+	case "":
+		return nil, fmt.Errorf("output cannot be empty")
+	case "-":
+		return nil, fmt.Errorf("cannot open stdout for writing - use os.Stdout directly instead")
 	}
 
 	var flag int = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 	if append {
-		flag = os.O_CREATE | os.O_APPEND | os.O_WRONLY
+		flag = os.O_CREATE | os.O_WRONLY | os.O_APPEND
 	}
 	f, err := os.OpenFile(path, flag, 0o644)
 	if err != nil {

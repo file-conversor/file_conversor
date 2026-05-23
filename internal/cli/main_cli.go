@@ -66,7 +66,7 @@ func Run(appName string) (int, error) {
 
 	// if if TTY is not available, disable progress bars and spinners
 	// to avoid cluttering output with control characters
-	if !env.IsTTY() {
+	if !env.IsTTY(os.Stdout) {
 		cli.NoProgress = true
 		cli.Quiet, cli.Debug = true, false
 	}

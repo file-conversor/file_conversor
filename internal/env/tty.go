@@ -8,6 +8,6 @@ import (
 	"github.com/mattn/go-isatty"
 )
 
-func IsTTY() bool {
-	return isatty.IsTerminal(os.Stdout.Fd())
+func IsTTY(file *os.File) bool {
+	return isatty.IsTerminal(file.Fd())
 }

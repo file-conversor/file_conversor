@@ -4,17 +4,32 @@ package validation
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/file-conversor/file_conversor/internal/env"
 )
 
+func CheckInputStdin(allow bool, paths ...string) error {
+	if env.IsTTY(os.Stdin) {
+		return fmt.Errorf("stdin is empty - pipe data to app, or specify input files as arguments")
+	}
+	if env.IsStdIO(paths...) && !allow {
+		return fmt.Errorf("stdin is not allowed")
+	}
+	return nil
+}
+
+func CheckOutputStdout(allow bool, paths ...string) error {
+	if env.IsStdIO(paths...) && !allow {
+		return fmt.Errorf("stdout is not allowed")
+	}
+	return nil
+}
+
 // check if input exists
-func InputFileExists(acceptStdin bool, inputs ...string) error {
+func InputFileExists(inputs ...string) error {
 	for _, input := range inputs {
 		if input == "-" {
-			if !acceptStdin {
-				return fmt.Errorf("stdin is not allowed for this operation")
-			}
 			continue // skip stdin since it's not an actual file
 		}
 		if !env.FileExists(input) {
@@ -48,11 +63,8 @@ func InputFileExt(inputs []string, allowedExts ...string) error {
 
 // Checks if the output file can be overwritten
 // (exists and not a directory, or doesn't exist)
-func OutputFileOverwritable(acceptStdout bool, output string, overwrite bool) error {
+func OutputFileOverwritable(output string, overwrite bool) error {
 	if output == "-" {
-		if !acceptStdout {
-			return fmt.Errorf("stdout is not allowed for this operation")
-		}
 		return nil // stdout can always be overwritten
 	}
 	if env.FileExists(output) && !overwrite {

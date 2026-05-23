@@ -17,18 +17,25 @@ import (
 // -------------
 
 type PdfMergeCLI struct {
-	Inputs []string `arg:""    required:"" help:"Input PDF files."`
-	Output string   `short:"o" required:"" help:"Output PDF file (use - for stdout)."`
-	Append bool     `short:"a" optional:"" help:"Append to output file (if its not stdout)."`
+	Inputs []string `arg:""    required:"" default:"-" help:"Input PDF files (leave empty for stdin)."`
+	Output string   `short:"o" required:""             help:"Output PDF file (use - for stdout)."`
+	Append bool     `short:"a" optional:""             help:"Append to output file (not supported for stdout)."`
 }
 
 func (c *PdfMergeCLI) Validate(ctx *MainCLI) error {
 	if err := errors.Join(
-		validation.OutputFileOverwritable(true, c.Output, ctx.Overwrite || c.Append),
+		// validation for output file
+		validation.CheckOutputStdout(true, c.Output),
 		validation.OutputFileExt(c.Output, ".pdf"),
+		validation.OutputFileOverwritable(c.Output, ctx.Overwrite || c.Append),
+
+		// validation for input files
+		validation.CheckInputStdin(true, c.Inputs...),
 		validation.InputFileExt(c.Inputs, ".pdf"),
+		validation.InputFileExists(c.Inputs...),
+
+		// validation for input and output (together)
 		validation.InputOutputNotEqual(c.Output, c.Inputs...),
-		validation.InputFileExists(false, c.Inputs...),
 	); err != nil {
 		return err
 	}
@@ -36,7 +43,7 @@ func (c *PdfMergeCLI) Validate(ctx *MainCLI) error {
 }
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
-	// validate arguments and flags
+	// parse and validate arguments and flags
 	if err := c.Validate(ctx); err != nil {
 		return err
 	}
