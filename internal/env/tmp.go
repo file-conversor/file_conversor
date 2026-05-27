@@ -40,13 +40,13 @@ func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func(), error) {
 func CopyToTmpFile(path string) (*os.File, func(), error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, nil, fmt.Errorf("copy to tmp - open file: %v", err)
+		return nil, nil, fmt.Errorf("copy to tmp - open file: %w", err)
 	}
 	defer file.Close()
 
 	tmpFile, cleanup, err := CopyToTmpFileRaw("", file)
 	if err != nil {
-		return nil, nil, fmt.Errorf("copy to tmp - copy %s to tmp file: %v", path, err)
+		return nil, nil, fmt.Errorf("copy to tmp - copy %s to tmp file: %w", path, err)
 	}
 	return tmpFile, cleanup, nil
 }

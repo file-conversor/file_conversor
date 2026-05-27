@@ -38,7 +38,7 @@ func (this *Merge) Parse() error {
 		this.OutputFlag.Parse(MergeFormats{}),
 		this.InputsArg.Parse(MergeFormats{}),
 	); err != nil {
-		return fmt.Errorf("parse input files: %v", err)
+		return fmt.Errorf("parse input files: %w", err)
 	}
 	return nil
 }
@@ -59,67 +59,55 @@ func (this *Merge) Validate() error {
 // Merge merges multiple PDF files into a single PDF file.
 func (this *Merge) Run() error {
 	var inIos []io.ReadSeeker
-	var outIo *os.File
-	var readStdin bool
+	var outFile *os.File
+	var cleanupFuncs []func() error
+
+	// defer cleanup
+	defer func() {
+		for _, cleanup := range cleanupFuncs {
+			cleanup() // clean up any files that were opened
+		}
+	}()
 
 	// parse user provided arguments (e.g. handle directories in input)
-	if err := errors.Join(
-		this.Parse(),
-		this.Validate(),
-	); err != nil {
-		return fmt.Errorf("parse input: %v", err)
+	if err := this.Parse(); err != nil {
+		return fmt.Errorf("parse input: %w", err)
 	}
 
+	// validate arguments (e.g. check files exist, etc)
+	if err := this.Validate(); err != nil {
+		return fmt.Errorf("validate input: %w", err)
+	}
+
+	// append existing output file (if exists)
 	if this.Append && env.FileExists(this.OutputFile) {
 		// copy existing output file to tmp file (if it exists) so that we can append it to output
 		tmpFile, cleanup, err := env.CopyToTmpFile(this.OutputFile)
 		if err != nil {
-			return fmt.Errorf("copy output to tmp file: %v", err)
+			return fmt.Errorf("copy output to tmp file: %w", err)
 		}
-		defer cleanup()                // ensure tmp file is cleaned up
+		// ensure tmp file is cleaned up
+		cleanupFuncs = append(cleanupFuncs, func() error { cleanup(); return nil })
 		inIos = append(inIos, tmpFile) // add tmp file as input to be merged with the other input files
 	}
 
-	for _, input := range this.InputFiles {
-		switch input {
-		case "":
-			return fmt.Errorf("input file path cannot be empty")
-		case "-":
-			if readStdin {
-				continue // already reading from stdin, skip additional "-"
-			}
-			readStdin = true
-			tmpFile, cleanup, err := env.CopyToTmpFileRaw("", os.Stdin)
-			if err != nil {
-				return fmt.Errorf("copy stdin to tmp file: %v", err)
-			}
-			defer cleanup() // ensure tmp file is cleaned up
-			inIos = append(inIos, tmpFile)
-		default:
-			inFile, err := os.Open(input)
-			if err != nil {
-				return err
-			}
-			defer inFile.Close()
-			inIos = append(inIos, inFile)
-		}
+	// open input files
+	in, cleanup, err := this.OpenInputFiles()
+	if err != nil {
+		return fmt.Errorf("open input files: %w", err)
 	}
+	cleanupFuncs = append(cleanupFuncs, cleanup...)
+	inIos = append(inIos, in...) // add input files to list of input io.ReadSeekers
 
-	switch this.OutputFile {
-	case "":
-		return fmt.Errorf("output cannot be empty")
-	case "-":
-		outIo = os.Stdout
-	default:
-		outFile, err := env.OpenOutputFile(this.OutputFile, false)
-		if err != nil {
-			return err
-		}
-		defer outFile.Close()
-		outIo = outFile
+	// open output file
+	out, cleanup, err := this.OpenOutputFile()
+	if err != nil {
+		return fmt.Errorf("open output file: %w", err)
 	}
+	cleanupFuncs = append(cleanupFuncs, cleanup...)
+	outFile = out
 
 	// use MergeRaw to merge input => output without intermediate files on disk
 	// note: api.Merge() is not used because it only accepts file paths, and we want to support stdin/stdout
-	return api.MergeRaw(inIos, outIo, false, nil)
+	return api.MergeRaw(inIos, outFile, false, nil)
 }

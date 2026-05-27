@@ -51,7 +51,7 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 		}
 		err := merge.Run()
 		if err != nil {
-			return fmt.Errorf("pdf merge - run: %v", err)
+			return fmt.Errorf("pdf merge - run: %w", err)
 		}
 		return nil
 	}

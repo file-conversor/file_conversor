@@ -62,7 +62,7 @@ func (d *Dependency) promptUser() error {
 	logger.Infof("Do you accept '%s' license, and me to continue with the installation? (y/N): ", d.Name)
 	var answer string
 	if _, err := fmt.Scan(&answer); err != nil {
-		return fmt.Errorf("reading user input: %v", err)
+		return fmt.Errorf("reading user input: %w", err)
 	}
 	answer = strings.ToUpper(answer)
 	if answer[0] != 'Y' {
@@ -92,14 +92,14 @@ func (d *Dependency) EnsureInstalled(prompt_user bool, dry_run bool) (string, er
 		// try to install dependency
 		logger.Infof("Installing '%s' dependency ...\n", d.Name)
 		if err := d.install(dry_run); err != nil {
-			return "", fmt.Errorf("dependency install '%s': %v", d.Name, err)
+			return "", fmt.Errorf("dependency install '%s': %w", d.Name, err)
 		}
 
 		// check if binary is available after installation
 		logger.Infof("Checking if '%s' is available ...\n", d.Name)
 		bin, err := exec.LookPath(d.Binary)
 		if err != nil {
-			return "", fmt.Errorf("cannot find '%s' binary: %v", d.Name, err)
+			return "", fmt.Errorf("cannot find '%s' binary: %w", d.Name, err)
 		}
 		return bin, nil
 	}

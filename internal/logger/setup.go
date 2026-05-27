@@ -19,7 +19,7 @@ func SetupLogger(cfg *Config) (io.Closer, error) {
 		if file != nil {
 			file.Close()
 		}
-		return nil, fmt.Errorf("logger setup: %v\n", err)
+		return nil, fmt.Errorf("logger setup: %w\n", err)
 	}
 	slog.SetDefault(log)
 	return file, nil

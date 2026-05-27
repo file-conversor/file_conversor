@@ -5,6 +5,8 @@ package core
 import (
 	"errors"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/env/glob"
@@ -24,7 +26,7 @@ func (this *InputsArg) Parse(formats Format) error {
 			this.InputFiles = append(this.InputFiles, line)
 		})
 		if err != nil {
-			return fmt.Errorf("parse inputs - read batch file: %v", err)
+			return fmt.Errorf("parse inputs - read batch file: %w", err)
 		}
 	}
 
@@ -32,11 +34,11 @@ func (this *InputsArg) Parse(formats Format) error {
 	if this.Recurse {
 		glob, err := glob.New(formats.In()...)
 		if err != nil {
-			return fmt.Errorf("parse inputs - create globber: %v", err)
+			return fmt.Errorf("parse inputs - create globber: %w", err)
 		}
 		inputFiles, err := glob.GlobFiles(this.InputFiles...)
 		if err != nil {
-			return fmt.Errorf("parse inputs - recurse dirs, or incorrect file extension: %v", err)
+			return fmt.Errorf("parse inputs - recurse dirs, or incorrect file extension: %w", err)
 		}
 		this.InputFiles = append(this.InputFiles, inputFiles...)
 	}
@@ -55,4 +57,44 @@ func (this *InputsArg) Validate(acceptStdin bool, formats Format) error {
 		validation.InputPathExists(this.InputFiles...),
 		validation.InputNotEmpty(this.InputFiles...),
 	)
+}
+
+func (this *InputsArg) OpenInputFiles() (inIos []io.ReadSeeker, cleanupFuncs []func() error, errGrp error) {
+	var readStdin bool
+
+	for _, input := range this.InputFiles {
+		switch input {
+		case "":
+			errGrp = errors.Join(errGrp, fmt.Errorf("input file path cannot be empty"))
+		case "-":
+			if readStdin {
+				continue // already reading from stdin, skip additional "-"
+			}
+			readStdin = true
+			tmpFile, cleanup, err := env.CopyToTmpFileRaw("", os.Stdin)
+			if err != nil {
+				errGrp = errors.Join(errGrp, fmt.Errorf("copy stdin to tmp file: %w", err))
+			} else {
+				cleanupFuncs = append(cleanupFuncs, func() error { cleanup(); return nil }) // ensure tmp file is cleaned up
+				inIos = append(inIos, tmpFile)
+			}
+		default:
+			inFile, err := os.Open(input)
+			if err != nil {
+				errGrp = errors.Join(errGrp, fmt.Errorf("open input file '%s': %w", input, err))
+			} else {
+				cleanupFuncs = append(cleanupFuncs, inFile.Close) // ensure file is closed
+				inIos = append(inIos, inFile)
+			}
+		}
+		if errGrp != nil {
+			for _, cleanup := range cleanupFuncs {
+				cleanup() // clean up any files that were opened before returning error
+			}
+			cleanupFuncs = nil
+			inIos = nil
+			return
+		}
+	}
+	return
 }

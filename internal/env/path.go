@@ -63,7 +63,7 @@ func CopyFile(src, dst string) error {
 	default:
 		srcFile, err = os.Open(src)
 		if err != nil {
-			return fmt.Errorf("copy file - open src file: %v", err)
+			return fmt.Errorf("copy file - open src file: %w", err)
 		}
 		defer srcFile.Close()
 	}
@@ -76,7 +76,7 @@ func CopyFile(src, dst string) error {
 	default:
 		dstFile, err = os.Create(dst)
 		if err != nil {
-			return fmt.Errorf("copy file - create dst file: %v", err)
+			return fmt.Errorf("copy file - create dst file: %w", err)
 		}
 		defer dstFile.Close()
 	}
@@ -111,7 +111,7 @@ func OpenInputFiles(path ...string) ([]*os.File, error) {
 		if err != nil {
 			// Close any files that were successfully opened
 			CloseFiles(files...)
-			return nil, err
+			return nil, fmt.Errorf("open input file '%s': %w", p, err)
 		}
 		files[i] = f
 	}
@@ -216,10 +216,18 @@ func IsEqualPath(path1, path2 string) (bool, error) {
 }
 
 func IsFileExt(path string, ext ...string) bool {
+	if len(ext) == 0 {
+		return true
+	}
 	fileExt := FileExt(path)
 	for _, e := range ext {
-		if strings.EqualFold(fileExt, e) {
-			return true
+		switch e {
+		case "", "*", ".*":
+			return true // skip empty extensions
+		default:
+			if strings.EqualFold(fileExt, e) {
+				return true
+			}
 		}
 	}
 	return false
