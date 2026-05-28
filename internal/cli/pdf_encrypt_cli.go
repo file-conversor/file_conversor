@@ -17,7 +17,7 @@ import (
 // -------------
 
 type PdfEncryptionFlag struct {
-	Encryption string `short:"e" optional:"" default:"aes256" enum:"aes256,aes128,rc128,rc40" help:"Encryption algorithm and key size."`
+	Encryption string `short:"e" optional:"" default:"aes256" enum:"aes256,aes128,rc128,rc40" help:"Encryption algorithm and key size (${enum})."`
 }
 
 func (c *PdfEncryptionFlag) Get() pdf.EncryptionAlgorithm {
@@ -34,7 +34,7 @@ func (c *PdfEncryptionFlag) Get() pdf.EncryptionAlgorithm {
 }
 
 type PdfPermissionsFlag struct {
-	Permissions []string `short:"m" optional:"" default:"all" enum:"all,print,modify,copy,annotate,none" help:"Permissions for encrypted PDF files (comma-separated)."`
+	Permissions []string `short:"m" optional:"" default:"all" enum:"all,print,modify,copy,annotate,none" help:"Permissions for encrypted PDF files (comma-separated). Options: ${enum}."`
 }
 
 func (c *PdfPermissionsFlag) Get() pdf.EncryptPermissions {
