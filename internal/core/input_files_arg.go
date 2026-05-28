@@ -18,11 +18,11 @@ type InputsArg struct {
 	AcceptStdin bool     // whether to accept stdin as input (set by command implementations)
 }
 
-func (this *InputsArg) Parse(formats FormatInterface) error {
+func (i *InputsArg) Parse(formats FormatInterface) error {
 	// read input file paths from batch file (one per line)
-	if this.BatchFile != "" {
-		err := env.ReadLines(this.BatchFile, func(line string) {
-			this.InputFiles = append(this.InputFiles, line)
+	if i.BatchFile != "" {
+		err := env.ReadLines(i.BatchFile, func(line string) {
+			i.InputFiles = append(i.InputFiles, line)
 		})
 		if err != nil {
 			return fmt.Errorf("parse inputs - read batch file: %w", err)
@@ -30,30 +30,30 @@ func (this *InputsArg) Parse(formats FormatInterface) error {
 	}
 
 	// if recurse flag is set, expand directories in input
-	if this.Recurse {
+	if i.Recurse {
 		glob, err := glob.New(formats.In()...)
 		if err != nil {
 			return fmt.Errorf("parse inputs - create globber: %w", err)
 		}
-		inputFiles, err := glob.GlobFiles(this.InputFiles...)
+		inputFiles, err := glob.GlobFiles(i.InputFiles...)
 		if err != nil {
 			return fmt.Errorf("parse inputs - recurse dirs, or incorrect file extension: %w", err)
 		}
-		this.InputFiles = append(this.InputFiles, inputFiles...)
+		i.InputFiles = append(i.InputFiles, inputFiles...)
 	}
 
 	// default to stdin if no inputs provided
-	if len(this.InputFiles) == 0 {
-		this.InputFiles = append(this.InputFiles, "-")
+	if len(i.InputFiles) == 0 {
+		i.InputFiles = append(i.InputFiles, "-")
 	}
 	return nil
 }
 
-func (this *InputsArg) Validate(formats FormatInterface) error {
+func (i *InputsArg) Validate(formats FormatInterface) error {
 	return errors.Join(
-		validation.CheckInputStdin(this.AcceptStdin, this.InputFiles...),
-		validation.InputFileExt(this.InputFiles, formats.In()...),
-		validation.InputPathExists(this.InputFiles...),
-		validation.InputNotEmpty(this.InputFiles...),
+		validation.AllowOrDenyInputStdin(i.AcceptStdin, i.InputFiles...),
+		validation.InputFileExt(i.InputFiles, formats.In()...),
+		validation.InputPathExists(i.InputFiles...),
+		validation.IsNotEmpty("input", i.InputFiles...),
 	)
 }

@@ -11,17 +11,6 @@ import (
 	"strings"
 )
 
-func GetOutputFile(input, outputDir, outputSuffix, outputExt string) string {
-	var stemStrBuilder strings.Builder
-	stemStrBuilder.Grow(64)
-
-	stemStrBuilder.WriteString(FileStem(input))
-	stemStrBuilder.WriteString(outputSuffix)
-	stemStrBuilder.WriteString(outputExt)
-
-	return filepath.Join(outputDir, stemStrBuilder.String())
-}
-
 func ChangeFileExt(path, newExt string) string {
 	return path[:len(path)-len(FileExt(path))] + newExt
 }

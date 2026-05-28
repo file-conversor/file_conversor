@@ -15,66 +15,63 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
 
-type mergeCmd struct {
-}
-
 type Merge struct {
 	Append              bool // append to output file (if it exists)
 	core.OutputFileFlag      // output file arguments (path, overwrite flag)
 	core.InputsArg           // input file arguments (paths, recurse flag, batch file)
 }
 
-func (this Merge) In() []string {
+func (m Merge) In() []string {
 	return []string{".pdf"}
 }
 
-func (this Merge) Out() []string {
+func (m Merge) Out() []string {
 	return []string{".pdf"}
 }
 
 func NewMerge(append bool, outputFileFlag core.OutputFileFlag, inputsArg core.InputsArg) (*Merge, error) {
-	merge := &Merge{
+	command := &Merge{
 		Append:         append,
 		OutputFileFlag: outputFileFlag,
 		InputsArg:      inputsArg,
 	}
-	if err := merge.Parse(); err != nil {
+	if err := command.Parse(); err != nil {
 		return nil, err
 	}
-	if err := merge.Validate(); err != nil {
+	if err := command.Validate(); err != nil {
 		return nil, err
 	}
-	return merge, nil
+	return command, nil
 }
 
-func (this *Merge) Parse() error {
+func (m *Merge) Parse() error {
 	// if append is true, we need to allow overwriting the output file
-	this.OutputFileFlag.Overwrite = this.OutputFileFlag.Overwrite || this.Append
+	m.OutputFileFlag.Overwrite = m.OutputFileFlag.Overwrite || m.Append
 
 	if err := errors.Join(
-		this.OutputFileFlag.Parse(this),
-		this.InputsArg.Parse(this),
+		m.OutputFileFlag.Parse(m),
+		m.InputsArg.Parse(m),
 	); err != nil {
 		return fmt.Errorf("parse input files: %w", err)
 	}
 	return nil
 }
 
-func (this *Merge) Validate() error {
+func (m *Merge) Validate() error {
 	return errors.Join(
 		// validation for output file
-		this.OutputFileFlag.Validate(this),
+		m.OutputFileFlag.Validate(m),
 
 		// validation for input files
-		this.InputsArg.Validate(this),
+		m.InputsArg.Validate(m),
 
 		// validation for input and output (together)
-		validation.InputOutputNotEqual(this.OutputFile, this.InputFiles...),
+		validation.InputOutputNotEqual(m.OutputFile, m.InputFiles...),
 	)
 }
 
 // Merge merges multiple PDF files into a single PDF file.
-func (this *Merge) GetRunnable() <-chan core.Runnable {
+func (m *Merge) GetRunnable() <-chan core.Runnable {
 	runnable := core.NewRunnable()
 	outChan := make(chan core.Runnable) // channel to send runnable to be executed
 
@@ -88,9 +85,9 @@ func (this *Merge) GetRunnable() <-chan core.Runnable {
 		var outFile *os.File
 
 		// append existing output file (if exists)
-		if this.Append && env.FileExists(this.OutputFile) {
+		if m.Append && env.FileExists(m.OutputFile) {
 			// copy existing output file to tmp file (if it exists) so that we can append it to output
-			tmpFile, cleanup, err := env.CopyToTmpFile(this.OutputFile)
+			tmpFile, cleanup, err := env.CopyToTmpFile(m.OutputFile)
 			if err != nil {
 				runnable.SetError(fmt.Errorf("copy output to tmp file: %w", err))
 				return
@@ -101,32 +98,35 @@ func (this *Merge) GetRunnable() <-chan core.Runnable {
 		}
 
 		// open input files
-		cleanupFuncs, err := env.OpenInputFiles(func(file *os.File) error {
+		err := env.OpenInputFiles(func(file *os.File, cleanup func() error) error {
 			inIos = append(inIos, file) // add input files to list of input io.ReadSeekers
+			runnable.AppendCleanup(cleanup)
 			return nil
-		}, this.InputFiles...)
+		}, m.InputFiles...)
 		if err != nil {
 			runnable.SetError(fmt.Errorf("open input files: %w", err))
 			return
 		}
-		runnable.AppendCleanup(cleanupFuncs...)
 
 		// open output file
-		cleanupFuncs, err = env.OpenOutputFile(func(file *os.File) error {
+		err = env.OpenOutputFile(func(file *os.File, cleanup func() error) error {
 			outFile = file // set output file handle for writing output
+			runnable.AppendCleanup(cleanup)
 			return nil
-		}, this.OutputFile)
+		}, m.OutputFile)
 		if err != nil {
 			runnable.SetError(fmt.Errorf("open output file: %w", err))
 			return
 		}
-		runnable.AppendCleanup(cleanupFuncs...)
 
 		// use MergeRaw to merge input => output without intermediate files on disk
 		// note: api.Merge() is not used because it only accepts file paths, and we want to support stdin/stdout
 		runnable.SetRun(func(updateProgress interfaces.ProgressIncrement) error {
-			defer updateProgress(100) // ensure progress is updated to 100% when done
-			return api.MergeRaw(inIos, outFile, false, nil)
+			if err := api.MergeRaw(inIos, outFile, false, nil); err != nil {
+				runnable.AppendCleanup(func() error { return os.Remove(outFile.Name()) })
+				return fmt.Errorf("pdf merge: %w", err)
+			}
+			return nil
 		})
 	}()
 	return outChan

@@ -96,7 +96,11 @@ func CloseFiles(res ...*os.File) error {
 	return errGrp
 }
 
-func OpenInputFiles(callback func(file *os.File) error, inputFiles ...string) (cleanupFuncs []func() error, errGrp error) {
+func OpenInputFiles(
+	callback func(file *os.File, cleanup func() error) error,
+	inputFiles ...string,
+) (errGrp error) {
+
 	var readStdin bool
 
 	for _, input := range inputFiles {
@@ -112,53 +116,39 @@ func OpenInputFiles(callback func(file *os.File) error, inputFiles ...string) (c
 			if err != nil {
 				errGrp = errors.Join(errGrp, fmt.Errorf("copy stdin to tmp file: %w", err))
 			} else {
-				// ensure tmp file is cleaned up
-				cleanupFuncs = append(cleanupFuncs, func() error { cleanup(); return nil })
 				// pass tmp file to callback for processing
-				callback(tmpFile)
+				errGrp = errors.Join(errGrp, callback(tmpFile, cleanup))
 			}
 		default:
 			inFile, err := os.Open(input)
 			if err != nil {
 				errGrp = errors.Join(errGrp, fmt.Errorf("open input file '%s': %w", input, err))
 			} else {
-				cleanupFuncs = append(cleanupFuncs, inFile.Close) // ensure file is closed
-				callback(inFile)
+				errGrp = errors.Join(errGrp, callback(inFile, inFile.Close))
 			}
-		}
-		if errGrp != nil {
-			for _, cleanup := range cleanupFuncs {
-				cleanup() // clean up any files that were opened before returning error
-			}
-			cleanupFuncs = []func() error{}
-			return
 		}
 	}
 	return
 }
 
-func OpenOutputFile(callback func(file *os.File) error, outputFile string) (cleanup []func() error, errGrp error) {
+func OpenOutputFile(
+	callback func(file *os.File, cleanup func() error) error,
+	outputFile string,
+) error {
+
 	switch outputFile {
 	case "":
-		errGrp = errors.Join(errGrp, fmt.Errorf("output cannot be empty"))
+		return fmt.Errorf("output cannot be empty")
 	case "-":
-		callback(os.Stdout) // pass stdout file handle to callback for writing output
+		// pass stdout file handle to callback for writing output
+		return callback(os.Stdout, func() error { return nil })
 	default:
 		outFile, err := os.Create(outputFile)
 		if err != nil {
-			errGrp = errors.Join(errGrp, fmt.Errorf("open output file '%s': %w", outputFile, err))
+			return fmt.Errorf("open output file '%s': %w", outputFile, err)
 		} else {
-			// ensure file is closed
-			cleanup = append(cleanup, outFile.Close)
 			// pass output file handle to callback for writing output
-			callback(outFile)
+			return callback(outFile, outFile.Close)
 		}
 	}
-	if errGrp != nil {
-		for _, cleanupFunc := range cleanup {
-			cleanupFunc() // clean up any files that were opened before returning error
-		}
-		cleanup = []func() error{}
-	}
-	return
 }

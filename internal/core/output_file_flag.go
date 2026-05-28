@@ -1,4 +1,4 @@
-// internal/core/output_file.go
+// internal/core/output_file_flag.go
 
 package core
 
@@ -14,14 +14,14 @@ type OutputFileFlag struct {
 	AcceptStdout bool   // accept stdout as output (set by command implementation)
 }
 
-func (this *OutputFileFlag) Parse(formats FormatInterface) error {
+func (o *OutputFileFlag) Parse(formats FormatInterface) error {
 	return nil
 }
 
-func (this *OutputFileFlag) Validate(formats FormatInterface) error {
+func (o *OutputFileFlag) Validate(formats FormatInterface) error {
 	return errors.Join(
-		validation.CheckOutputStdout(this.AcceptStdout, this.OutputFile),
-		validation.OutputFileExt(this.OutputFile, formats.Out()...),
-		validation.OutputFileOverwritable(this.OutputFile, this.Overwrite),
+		validation.AllowOrDenyOutputStdout(o.AcceptStdout, o.OutputFile),
+		validation.OutputFileExt(o.OutputFile, formats.Out()...),
+		validation.OutputFileOverwritable(o.OutputFile, o.Overwrite),
 	)
 }
