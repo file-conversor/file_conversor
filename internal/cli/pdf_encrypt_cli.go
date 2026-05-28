@@ -16,18 +16,16 @@ import (
 // ENCRYPT COMMAND
 // -------------
 
-type PdfEncryptionAlgorithm struct {
-	Encryption string `short:"e" optional:"" default:"aes256" enum:"aes256,aes128,aes40,rc128,rc40" help:"Encryption algorithm and key size."`
+type PdfEncryptionFlag struct {
+	Encryption string `short:"e" optional:"" default:"aes256" enum:"aes256,aes128,rc128,rc40" help:"Encryption algorithm and key size."`
 }
 
-func (c *PdfEncryptionAlgorithm) Get() pdf.EncryptionAlgorithm {
+func (c *PdfEncryptionFlag) Get() pdf.EncryptionAlgorithm {
 	switch c.Encryption {
 	case "rc40":
 		return pdf.RC40
 	case "rc128":
 		return pdf.RC128
-	case "aes40":
-		return pdf.AES40
 	case "aes128":
 		return pdf.AES128
 	default:
@@ -61,15 +59,15 @@ func (c *PdfPermissionsFlag) Get() pdf.EncryptPermissions {
 }
 
 type PdfEncryptCLI struct {
-	InputFiles             []string `arg:""    optional:""                      help:"Input PDF files."`
-	OutputDir              string   `short:"o" optional:"" default:"."          help:"Output directory for encrypted files."`
-	OwnerPassword          string   `short:"p" required:""                      help:"Password for encrypting PDF files."`
-	UserPassword           string   `short:"u" optional:""                      help:"User password for encrypted PDF files (leave empty to use owner password)."`
-	Recurse                bool     `short:"r" optional:""                      help:"Recurse into subdirectories."`
-	BatchFile              string   `short:"b" optional:""                      help:"Batch file with list of input files (one per line)."`
-	Suffix                 string   `short:"s" optional:"" default:"_encrypted" help:"Suffix to add to output file stem"`
-	PdfEncryptionAlgorithm          // encryption algorithm and key size for encrypting PDF files
-	PdfPermissionsFlag              // permissions for encrypted PDF files
+	InputFiles         []string `arg:""    optional:""                      help:"Input PDF files."`
+	OutputDir          string   `short:"o" optional:"" default:"."          help:"Output directory for encrypted files."`
+	OwnerPassword      string   `short:"p" required:""                      help:"Password for encrypting PDF files."`
+	UserPassword       string   `short:"u" optional:""                      help:"User password for encrypted PDF files (leave empty to use owner password)."`
+	Recurse            bool     `short:"r" optional:""                      help:"Recurse into subdirectories."`
+	BatchFile          string   `short:"b" optional:""                      help:"Batch file with list of input files (one per line)."`
+	Suffix             string   `short:"s" optional:"" default:"_encrypted" help:"Suffix to add to output file stem"`
+	PdfEncryptionFlag           // encryption algorithm and key size for encrypting PDF files
+	PdfPermissionsFlag          // permissions for encrypted PDF files
 }
 
 func (c *PdfEncryptCLI) Help() string {
@@ -84,7 +82,7 @@ Example usage:
 
 func (c *PdfEncryptCLI) Run(ctx *MainCLI) error {
 	// create encrypt function to run with or without progress bar
-	encryptionAlgorithm := c.PdfEncryptionAlgorithm.Get()
+	encryptionAlgorithm := c.PdfEncryptionFlag.Get()
 	permissions := c.PdfPermissionsFlag.Get()
 	cmd, err := pdf.NewEncrypt(
 		c.UserPassword,

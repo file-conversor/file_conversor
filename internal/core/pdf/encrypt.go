@@ -14,41 +14,39 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
-type EncryptionAlgorithm struct {
-	algorithm string // encryption algorithm to use (e.g. "AES256")
-	keySize   int    // key size for encryption (e.g. 256)
-}
+type EncryptionAlgorithm uint8
 
-func (e *EncryptionAlgorithm) SetConf(conf *model.Configuration) error {
-	switch e.algorithm {
-	case "AES", "RC4":
-		// valid algorithms, do nothing
+const (
+	AES256 EncryptionAlgorithm = iota
+	AES128
+	RC128
+	RC40 // legacy
+)
+
+func (e EncryptionAlgorithm) SetConf(conf *model.Configuration) error {
+	switch e {
+	case AES256:
+		conf.EncryptUsingAES = true
+		conf.EncryptKeyLength = 256
+
+	case AES128:
+		conf.EncryptUsingAES = true
+		conf.EncryptKeyLength = 128
+
+	case RC40:
+		conf.EncryptUsingAES = false
+		conf.EncryptKeyLength = 40
+
+	case RC128:
+		conf.EncryptUsingAES = false
+		conf.EncryptKeyLength = 128
+
 	default:
-		return fmt.Errorf("invalid encryption algorithm: %s", e.algorithm)
-	}
-	switch e.keySize {
-	case 128, 40:
-		// valid key sizes, do nothing
-	case 256:
-		if e.algorithm != "AES" {
-			return fmt.Errorf("invalid key size %d for algorithm %s", e.keySize, e.algorithm)
-		}
-	default:
-		return fmt.Errorf("invalid encryption key size: %d", e.keySize)
+		return fmt.Errorf("invalid encryption algorithm")
 	}
 
-	conf.EncryptUsingAES = (e.algorithm == "AES")
-	conf.EncryptKeyLength = e.keySize
 	return nil
 }
-
-var (
-	AES256 = EncryptionAlgorithm{algorithm: "AES", keySize: 256}
-	AES128 = EncryptionAlgorithm{algorithm: "AES", keySize: 128}
-	AES40  = EncryptionAlgorithm{algorithm: "AES", keySize: 40}
-	RC40   = EncryptionAlgorithm{algorithm: "RC4", keySize: 40}
-	RC128  = EncryptionAlgorithm{algorithm: "RC4", keySize: 128}
-)
 
 type EncryptPermissions struct {
 	PermissionAssemble       bool // Assemble document (security handlers >= rev.3)
