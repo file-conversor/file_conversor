@@ -1,4 +1,4 @@
-// internal/progress/progress_bar.go
+// internal/env/progress_bar.go
 
 package progress
 
@@ -10,11 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/vbauerster/mpb/v8"
 	"github.com/vbauerster/mpb/v8/decor"
 )
-
-type ProgressIncrement func(int64)
 
 // ----------------------
 // PROGRESS BAR STYLE
@@ -143,7 +142,7 @@ func NewProgressBarMgr(maxWorkers int) *ProgressBarMgr {
 
 // adds a new progress bar / spinner with the given name and total work units,
 // and starts a goroutine to execute the provided work function.
-func (m *ProgressBarMgr) AddBarOrSpinner(barCfg *ProgressBarCfg, work func(ProgressIncrement) error) *ProgressBarMgr {
+func (m *ProgressBarMgr) AddBarOrSpinner(barCfg *ProgressBarCfg, work func(interfaces.ProgressIncrement) error) *ProgressBarMgr {
 	m.workersChan <- struct{}{} // acquire a worker slot
 
 	// lock to ensure thread safety when adding bars,

@@ -91,7 +91,7 @@ func OutputFileExt(output string, allowedExts ...string) error {
 		return nil // stdout can have any extension since it's not an actual file
 	}
 	if !env.IsFileExt(output, allowedExts...) {
-		return fmt.Errorf("invalid extension for '%s', expected %w", output, allowedExts)
+		return fmt.Errorf("invalid extension for '%s', expected %v", output, allowedExts)
 	}
 	return nil
 }

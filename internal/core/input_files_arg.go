@@ -5,8 +5,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/env/glob"
@@ -14,12 +12,13 @@ import (
 )
 
 type InputsArg struct {
-	InputFiles []string // input file paths (use - for stdin), can be dirs or .pdf files
-	Recurse    bool     // recurse into subdirectories when input is a directory
-	BatchFile  string   // batch file containing list of input files (one per line)
+	InputFiles  []string // input file paths (use - for stdin), can be dirs or .pdf files
+	Recurse     bool     // recurse into subdirectories when input is a directory
+	BatchFile   string   // batch file containing list of input files (one per line)
+	AcceptStdin bool     // whether to accept stdin as input (set by command implementations)
 }
 
-func (this *InputsArg) Parse(formats Format) error {
+func (this *InputsArg) Parse(formats FormatInterface) error {
 	// read input file paths from batch file (one per line)
 	if this.BatchFile != "" {
 		err := env.ReadLines(this.BatchFile, func(line string) {
@@ -50,51 +49,11 @@ func (this *InputsArg) Parse(formats Format) error {
 	return nil
 }
 
-func (this *InputsArg) Validate(acceptStdin bool, formats Format) error {
+func (this *InputsArg) Validate(formats FormatInterface) error {
 	return errors.Join(
-		validation.CheckInputStdin(acceptStdin, this.InputFiles...),
+		validation.CheckInputStdin(this.AcceptStdin, this.InputFiles...),
 		validation.InputFileExt(this.InputFiles, formats.In()...),
 		validation.InputPathExists(this.InputFiles...),
 		validation.InputNotEmpty(this.InputFiles...),
 	)
-}
-
-func (this *InputsArg) OpenInputFiles() (inIos []io.ReadSeeker, cleanupFuncs []func() error, errGrp error) {
-	var readStdin bool
-
-	for _, input := range this.InputFiles {
-		switch input {
-		case "":
-			errGrp = errors.Join(errGrp, fmt.Errorf("input file path cannot be empty"))
-		case "-":
-			if readStdin {
-				continue // already reading from stdin, skip additional "-"
-			}
-			readStdin = true
-			tmpFile, cleanup, err := env.CopyToTmpFileRaw("", os.Stdin)
-			if err != nil {
-				errGrp = errors.Join(errGrp, fmt.Errorf("copy stdin to tmp file: %w", err))
-			} else {
-				cleanupFuncs = append(cleanupFuncs, func() error { cleanup(); return nil }) // ensure tmp file is cleaned up
-				inIos = append(inIos, tmpFile)
-			}
-		default:
-			inFile, err := os.Open(input)
-			if err != nil {
-				errGrp = errors.Join(errGrp, fmt.Errorf("open input file '%s': %w", input, err))
-			} else {
-				cleanupFuncs = append(cleanupFuncs, inFile.Close) // ensure file is closed
-				inIos = append(inIos, inFile)
-			}
-		}
-		if errGrp != nil {
-			for _, cleanup := range cleanupFuncs {
-				cleanup() // clean up any files that were opened before returning error
-			}
-			cleanupFuncs = nil
-			inIos = nil
-			return
-		}
-	}
-	return
 }

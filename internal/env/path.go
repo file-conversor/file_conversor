@@ -3,139 +3,13 @@
 package env
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 )
-
-func EnsureParentDirExists(path string) error {
-	dir := Dirname(path)
-	if err := MkdirAll(dir); err != nil {
-		return err
-	}
-	return nil
-}
-
-func MkdirAll(path string) error {
-	return os.MkdirAll(path, 0o755)
-}
-
-// read file lines into a slice of strings (trims whitespace and ignores empty lines)
-func ReadLines(path string, processLine func(string)) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open file: %w", err)
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := scanner.Text()
-		line = strings.TrimSpace(line)
-		if line != "" {
-			processLine(line)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("scan file: %w", err)
-	}
-	return nil
-}
-
-// Copy src => dst, where src and dst can be file paths or "-" for stdin/stdout.
-// If dst == "", a temporary file will be created and its path returned
-func CopyFile(src, dst string) error {
-	var srcFile *os.File
-	var dstFile *os.File
-	var err error
-
-	switch src {
-	case "":
-		return fmt.Errorf("copy file - source path cannot be empty")
-	case "-":
-		srcFile = os.Stdin
-	default:
-		srcFile, err = os.Open(src)
-		if err != nil {
-			return fmt.Errorf("copy file - open src file: %w", err)
-		}
-		defer srcFile.Close()
-	}
-
-	switch dst {
-	case "":
-		return fmt.Errorf("copy file - destination path cannot be empty")
-	case "-":
-		dstFile = os.Stdout
-	default:
-		dstFile, err = os.Create(dst)
-		if err != nil {
-			return fmt.Errorf("copy file - create dst file: %w", err)
-		}
-		defer dstFile.Close()
-	}
-
-	_, err = io.Copy(dstFile, srcFile)
-	return err
-}
-
-func CloseFiles(res ...*os.File) error {
-	var errGrp error
-	for _, f := range res {
-		if f == nil {
-			continue // skip nil pointers
-		}
-		if err := (*f).Close(); err != nil {
-			errGrp = errors.Join(errGrp, err)
-		}
-	}
-	return errGrp
-}
-
-func OpenInputFiles(path ...string) ([]*os.File, error) {
-	files := make([]*os.File, len(path))
-	for i, p := range path {
-		switch p {
-		case "":
-			return nil, fmt.Errorf("input file path cannot be empty")
-		case "-":
-			return nil, fmt.Errorf("cannot open stdin for reading - use os.Stdin directly instead")
-		}
-		f, err := os.Open(p)
-		if err != nil {
-			// Close any files that were successfully opened
-			CloseFiles(files...)
-			return nil, fmt.Errorf("open input file '%s': %w", p, err)
-		}
-		files[i] = f
-	}
-	return files, nil
-}
-
-func OpenOutputFile(path string, append bool) (*os.File, error) {
-	switch path {
-	case "":
-		return nil, fmt.Errorf("output cannot be empty")
-	case "-":
-		return nil, fmt.Errorf("cannot open stdout for writing - use os.Stdout directly instead")
-	}
-
-	var flag int = os.O_CREATE | os.O_WRONLY | os.O_TRUNC
-	if append {
-		flag = os.O_CREATE | os.O_WRONLY | os.O_APPEND
-	}
-	f, err := os.OpenFile(path, flag, 0o644)
-	if err != nil {
-		return nil, err
-	}
-	return f, nil
-}
 
 func GetOutputFile(input, outputDir, outputSuffix, outputExt string) string {
 	var stemStrBuilder strings.Builder

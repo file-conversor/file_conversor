@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"runtime"
 	"sync"
+
+	"github.com/file-conversor/file_conversor/internal/interfaces"
 )
 
 type ThreadPool struct {
@@ -32,7 +34,7 @@ func NewThreadPool(maxWorkers int) *ThreadPool {
 	}
 }
 
-func (tp *ThreadPool) AddTask(task func() error) {
+func (tp *ThreadPool) AddTask(task func(interfaces.ProgressIncrement) error) {
 	tp.workersChan <- struct{}{} // acquire a worker slot
 
 	tp.mu.Lock()
@@ -62,7 +64,10 @@ func (tp *ThreadPool) AddTask(task func() error) {
 			tp.wg.Done() // mark this task as done in the WaitGroup
 		}()
 
-		workErr = task() // execute the task and capture any error
+		// execute the task and capture any error
+		workErr = task(func(increment int64) {
+			// noop progress increment function (no need to report progress from worker threads)
+		})
 	}()
 }
 

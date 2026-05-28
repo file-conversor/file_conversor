@@ -36,39 +36,39 @@ Example usage:
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 	// create merge function to run with or without progress bar
-	mergeFunc := func() error {
-		merge := &pdf.Merge{
-			Append: c.Append,
-			OutputFlag: core.OutputFlag{
-				OutputFile: c.OutputFile,
-				Overwrite:  ctx.Overwrite,
-			},
-			InputsArg: core.InputsArg{
-				InputFiles: c.InputFiles,
-				Recurse:    c.Recurse,
-				BatchFile:  c.BatchFile,
-			},
-		}
-		err := merge.Run()
-		if err != nil {
-			return fmt.Errorf("pdf merge - run: %w", err)
-		}
-		return nil
+	merge, err := pdf.NewMerge(
+		c.Append,
+		core.OutputFileFlag{
+			OutputFile:   c.OutputFile,
+			Overwrite:    ctx.Overwrite,
+			AcceptStdout: true,
+		},
+		core.InputsArg{
+			InputFiles:  c.InputFiles,
+			Recurse:     c.Recurse,
+			BatchFile:   c.BatchFile,
+			AcceptStdin: true,
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("pdf merge: %w", err)
 	}
 
 	// if no progress bars, just run the merge in a single thread and return any error
 	logger.Infof("Merging input files into '%s' (append: %t)\n", c.OutputFile, c.Append)
 	if ctx.NoProgress {
 		tp := env.NewThreadPool(0)
-		tp.AddTask(mergeFunc)
+		for runnable := range merge.GetRunnable() {
+			tp.AddTask(runnable.Run)
+		}
 		return tp.Wait()
 	}
 
 	// progress bar with spinner style (since we don't know total pages in advance)
 	p := progress.NewProgressBarMgr(0)
-	p.AddBarOrSpinner(progress.NewBarCfg(env.BaseName(c.OutputFile), 0, true),
-		func(updateProgress progress.ProgressIncrement) error {
-			return mergeFunc()
-		})
+	for runnable := range merge.GetRunnable() {
+		barCfg := progress.NewBarCfg(env.BaseName(c.OutputFile), 0, true)
+		p.AddBarOrSpinner(barCfg, runnable.Run)
+	}
 	return p.Wait()
 }

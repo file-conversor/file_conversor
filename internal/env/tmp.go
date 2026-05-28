@@ -3,13 +3,14 @@
 package env
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
 )
 
-func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func(), error) {
-	noop := func() {}
+func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func() error, error) {
+	noop := func() error { return nil }
 	// create tmp file
 	if pattern == "" {
 		pattern = "tmpfile-*"
@@ -18,9 +19,11 @@ func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func(), error) {
 	if err != nil {
 		return nil, noop, fmt.Errorf("create tmp file: %w", err)
 	}
-	callback := func() {
-		tmp.Close()
-		os.Remove(tmp.Name())
+	callback := func() error {
+		return errors.Join(
+			tmp.Close(),
+			os.Remove(tmp.Name()),
+		)
 	}
 	// copy input to tmp file
 	if _, err = io.Copy(tmp, in); err != nil {
@@ -37,7 +40,7 @@ func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func(), error) {
 
 // Copies the file at the given path to a temporary file.
 // Returns the temporary file and a cleanup function.
-func CopyToTmpFile(path string) (*os.File, func(), error) {
+func CopyToTmpFile(path string) (*os.File, func() error, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("copy to tmp - open file: %w", err)
