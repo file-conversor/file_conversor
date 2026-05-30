@@ -5,10 +5,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/file-conversor/file_conversor/internal/cli/progress"
-	"github.com/file-conversor/file_conversor/internal/core"
+	core_flags "github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/core/pdf"
-	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
@@ -36,14 +34,14 @@ Example usage:
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 	// create merge function to run with or without progress bar
-	merge, err := pdf.NewMerge(
+	cmd, err := pdf.NewMerge(
 		c.Append,
-		core.OutputFileFlag{
+		core_flags.OutputFileFlag{
 			OutputFile:   c.OutputFile,
 			Overwrite:    ctx.Overwrite,
 			AcceptStdout: true,
 		},
-		core.InputsArg{
+		core_flags.InputFilesArg{
 			InputFiles:  c.InputFiles,
 			Recurse:     c.Recurse,
 			BatchFile:   c.BatchFile,
@@ -56,19 +54,5 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 
 	// if no progress bars, just run the merge in a single thread and return any error
 	logger.Infof("Merging input files into '%s' (append: %t)\n", c.OutputFile, c.Append)
-	if ctx.NoProgress {
-		tp := env.NewThreadPool(0)
-		for runnable := range merge.GetRunnable() {
-			tp.AddTask(runnable.Run)
-		}
-		return tp.Wait()
-	}
-
-	// progress bar with spinner style (since we don't know total pages in advance)
-	p := progress.NewProgressBarMgr(0)
-	for runnable := range merge.GetRunnable() {
-		barCfg := progress.NewBarCfg(env.BaseName(c.OutputFile), 0, true)
-		p.AddBarOrSpinner(barCfg, runnable.Run)
-	}
-	return p.Wait()
+	return ctx.ExecuteRunnable(cmd.GetRunnable(), 0)
 }

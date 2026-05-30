@@ -1,6 +1,6 @@
-// internal/core/output_dir_flag.go
+// internal/core/flags/output_dir_flag.go
 
-package core
+package flags
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/file-conversor/file_conversor/internal/env"
+	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/utils"
 	"github.com/file-conversor/file_conversor/internal/validation"
 )
@@ -22,13 +23,13 @@ type OutputDirFlag struct {
 	AcceptStdout bool   // whether to accept stdout as output dir
 }
 
-func (o *OutputDirFlag) Parse(formats FormatInterface) error {
+func (o *OutputDirFlag) Parse(formats interfaces.FormatInterface) error {
 	return errors.Join(
-		env.MkdirAll(o.OutputDir),
+		validation.OutputDirEnsure(o.OutputDir),
 	)
 }
 
-func (o *OutputDirFlag) Validate(formats FormatInterface) error {
+func (o *OutputDirFlag) Validate(formats interfaces.FormatInterface) error {
 	return errors.Join(
 		validation.AllowOrDenyOutputStdout(o.AcceptStdout, o.OutputDir),
 		validation.OutputFileExt(o.Format, formats.Out()...),

@@ -9,6 +9,8 @@ import (
 	"os"
 
 	"github.com/alecthomas/kong"
+	"github.com/file-conversor/file_conversor/internal/cli/progress"
+	"github.com/file-conversor/file_conversor/internal/core"
 	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
@@ -39,6 +41,27 @@ Example usage:
   # process multiple inputs and write to output.pdf (no progress, overwrite output)
   file_conversor -N -O pdf merge -o output.pdf input1.pdf input2.pdf input3.pdf
 `
+}
+
+func (c *MainCLI) ExecuteRunnable(runnableChan <-chan *core.Runnable, total int64) error {
+	const MAX_WORKERS = 0
+
+	// if no progress bars, just run the decrypt in a single thread and return any error
+	if c.NoProgress {
+		tp := env.NewThreadPool(MAX_WORKERS)
+		for runnable := range runnableChan {
+			tp.AddTask(runnable.Run)
+		}
+		return tp.Wait()
+	}
+
+	// progress bar with spinner style (since we don't know total pages in advance)
+	p := progress.NewProgressBarMgr(MAX_WORKERS)
+	for runnable := range runnableChan {
+		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), total, true)
+		p.AddBarOrSpinner(barCfg, runnable.Run)
+	}
+	return p.Wait()
 }
 
 // Run executes the main CLI logic.

@@ -5,10 +5,8 @@ package cli
 import (
 	"fmt"
 
-	"github.com/file-conversor/file_conversor/internal/cli/progress"
-	"github.com/file-conversor/file_conversor/internal/core"
+	core_flags "github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/core/pdf"
-	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
@@ -17,12 +15,12 @@ import (
 // -------------
 
 type PdfDecryptCLI struct {
-	InputFiles []string `arg:""    optional:""                    help:"Input PDF files."`
-	OutputDir  string   `short:"o" required:""                    help:"Output directory for decrypted files."`
-	Password   string   `short:"p" required:""                    help:"Password for decrypting PDF files."`
+	InputFiles []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
+	OutputDir  string   `short:"o" optional:"" default:"."        help:"Output directory (use - for stdout) [default: ${default}]."`
+	Password   string   `short:"p" required:""                    help:"Password for decrypting."`
 	Recurse    bool     `short:"r" optional:""                    help:"Recurse into subdirectories."`
 	BatchFile  string   `short:"b" optional:""                    help:"Batch file with list of input files (one per line)."`
-	Suffix     string   `short:"s" optional:"" default:"_decrypt" help:"Suffix to add to output file stem (default: '')"`
+	Suffix     string   `short:"s" optional:"" default:"_decrypt" help:"Suffix to add to output file stem [default: ${default}]."`
 }
 
 func (c *PdfDecryptCLI) Help() string {
@@ -39,14 +37,14 @@ func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
 	// create decrypt function to run with or without progress bar
 	cmd, err := pdf.NewDecrypt(
 		c.Password,
-		core.OutputDirFlag{
+		core_flags.OutputDirFlag{
 			OutputDir:    c.OutputDir,
 			Overwrite:    ctx.Overwrite,
 			Suffix:       c.Suffix,
 			Format:       ".pdf",
 			AcceptStdout: true,
 		},
-		core.InputsArg{
+		core_flags.InputFilesArg{
 			InputFiles:  c.InputFiles,
 			Recurse:     c.Recurse,
 			BatchFile:   c.BatchFile,
@@ -59,19 +57,5 @@ func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
 
 	// if no progress bars, just run the decrypt in a single thread and return any error
 	logger.Infof("Decrypting input files into folder '%s'\n", c.OutputDir)
-	if ctx.NoProgress {
-		tp := env.NewThreadPool(0)
-		for runnable := range cmd.GetRunnable() {
-			tp.AddTask(runnable.Run)
-		}
-		return tp.Wait()
-	}
-
-	// progress bar with spinner style (since we don't know total pages in advance)
-	p := progress.NewProgressBarMgr(0)
-	for runnable := range cmd.GetRunnable() {
-		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), 0, true)
-		p.AddBarOrSpinner(barCfg, runnable.Run)
-	}
-	return p.Wait()
+	return ctx.ExecuteRunnable(cmd.GetRunnable(), 0)
 }

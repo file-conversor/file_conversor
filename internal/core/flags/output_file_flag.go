@@ -1,10 +1,11 @@
-// internal/core/output_file_flag.go
+// internal/core/flags/output_file_flag.go
 
-package core
+package flags
 
 import (
 	"errors"
 
+	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/validation"
 )
 
@@ -14,11 +15,11 @@ type OutputFileFlag struct {
 	AcceptStdout bool   // accept stdout as output (set by command implementation)
 }
 
-func (o *OutputFileFlag) Parse(formats FormatInterface) error {
+func (o *OutputFileFlag) Parse(formats interfaces.FormatInterface) error {
 	return nil
 }
 
-func (o *OutputFileFlag) Validate(formats FormatInterface) error {
+func (o *OutputFileFlag) Validate(formats interfaces.FormatInterface) error {
 	return errors.Join(
 		validation.AllowOrDenyOutputStdout(o.AcceptStdout, o.OutputFile),
 		validation.OutputFileExt(o.OutputFile, formats.Out()...),

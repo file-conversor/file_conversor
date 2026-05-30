@@ -152,3 +152,11 @@ func OpenOutputFile(
 		}
 	}
 }
+
+func ToIoReadSeekers(files []*os.File) []io.ReadSeeker {
+	readSeekers := make([]io.ReadSeeker, len(files))
+	for i, file := range files {
+		readSeekers[i] = file
+	}
+	return readSeekers
+}

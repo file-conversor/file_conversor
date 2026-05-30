@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/file-conversor/file_conversor/internal/core"
-	"github.com/file-conversor/file_conversor/internal/env"
+	"github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
+	"github.com/file-conversor/file_conversor/internal/logger"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
@@ -48,6 +50,21 @@ func (e EncryptionAlgorithm) SetConf(conf *model.Configuration) error {
 	return nil
 }
 
+func (e EncryptionAlgorithm) String() string {
+	switch e {
+	case AES256:
+		return "AES256"
+	case AES128:
+		return "AES128"
+	case RC40:
+		return "RC40"
+	case RC128:
+		return "RC128"
+	default:
+		return "Unknown"
+	}
+}
+
 type EncryptPermissions struct {
 	PermissionAssemble       bool // Assemble document (security handlers >= rev.3)
 	PermissionExtract        bool // Copy, extract text & graphics
@@ -84,13 +101,38 @@ func (p *EncryptPermissions) Get() model.PermissionFlags {
 	return perms
 }
 
+func (p *EncryptPermissions) String() string {
+	perms := []string{}
+	if p.PermissionAssemble {
+		perms = append(perms, "Assemble")
+	}
+	if p.PermissionExtract {
+		perms = append(perms, "Extract")
+	}
+	if p.PermissionPrint {
+		perms = append(perms, "Print")
+	}
+	if p.PermissionModAnnFillForm {
+		perms = append(perms, "Modify Annotations and Fill Forms")
+	}
+	if p.PermissionModify {
+		perms = append(perms, "Modify")
+	}
+	if p.PermissionFill {
+		perms = append(perms, "Fill Forms")
+	}
+	if p.PermissionAll {
+		perms = append(perms, "All")
+	}
+	return fmt.Sprintf("[%s]", strings.Join(perms, ", "))
+}
+
 type Encrypt struct {
-	UserPassword       string              // user password for encryption (optional, if not set, will use owner password as user password)
-	OwnerPassword      string              // owner password for encryption
-	Encryption         EncryptionAlgorithm // encryption algorithm to use (e.g. AES256)
-	Permissions        EncryptPermissions  // permissions for encrypted PDF
-	core.OutputDirFlag                     // output dir flag (dir, overwrite, suffix, format)
-	core.InputsArg                         // input file arguments (paths, recurse flag, batch file)
+	UserPassword    string              // user password for encryption (optional, if not set, will use owner password as user password)
+	OwnerPassword   string              // owner password for encryption
+	Encryption      EncryptionAlgorithm // encryption algorithm to use (e.g. AES256)
+	Permissions     EncryptPermissions  // permissions for encrypted PDF
+	core.MapCommand                     // MapCommand: batch input file => output directory
 }
 
 func (e *Encrypt) In() []string {
@@ -103,8 +145,8 @@ func (e *Encrypt) Out() []string {
 
 func NewEncrypt(
 	userPassword, ownerPassword string,
-	outputDirFlag core.OutputDirFlag,
-	inputsArg core.InputsArg,
+	outputDirFlag flags.OutputDirFlag,
+	inputsArg flags.InputFilesArg,
 	encryption EncryptionAlgorithm,
 	permissions EncryptPermissions,
 ) (*Encrypt, error) {
@@ -114,13 +156,15 @@ func NewEncrypt(
 		OwnerPassword: ownerPassword,
 		Encryption:    encryption,
 		Permissions:   permissions,
-		OutputDirFlag: outputDirFlag,
-		InputsArg:     inputsArg,
+		MapCommand: core.MapCommand{
+			OutputDirFlag: outputDirFlag,
+			InputFilesArg: inputsArg,
+		},
 	}
-	if err := command.Parse(); err != nil {
-		return nil, err
-	}
-	if err := command.Validate(); err != nil {
+	if err := errors.Join(
+		command.Parse(),
+		command.Validate(),
+	); err != nil {
 		return nil, err
 	}
 	return command, nil
@@ -130,73 +174,32 @@ func (e *Encrypt) Parse() error {
 	if e.UserPassword == "" {
 		e.UserPassword = e.OwnerPassword // if user password is not set, use owner password as user password
 	}
-
-	if err := errors.Join(
-		e.OutputDirFlag.Parse(e),
-		e.InputsArg.Parse(e),
-	); err != nil {
-		return fmt.Errorf("parse input files: %w", err)
-	}
-	return nil
+	return e.MapCommand.Parse(e) // pass Encrypt as FormatInterface to MapCommand
 }
 
 func (e *Encrypt) Validate() error {
-	return errors.Join(
-		// validation for output file
-		e.OutputDirFlag.Validate(e),
-
-		// validation for input files
-		e.InputsArg.Validate(e),
-	)
+	return e.MapCommand.Validate(e) // pass Encrypt as FormatInterface to MapCommand
 }
 
 // Will run the encryption command and return any error encountered during execution.
-func (e *Encrypt) GetRunnable() <-chan core.Runnable {
-	outChan := make(chan core.Runnable) // channel to send runnable to be executed
-
-	go func() {
-		defer close(outChan) // close channel when done
-
-		processFileFunc := func(inputFile *os.File, cleanup func() error) error {
-			runnable := core.NewRunnable()
-			runnable.AppendCleanup(cleanup) // ensure cleanup is called after processing
-
-			runnableRun := func(updateProgress interfaces.ProgressIncrement) error {
-				// open output file
-				outFile, err := e.GetOutputFile(inputFile.Name())
-				if err != nil {
-					return fmt.Errorf("open output file for '%s': %w", inputFile.Name(), err)
-				}
-				defer outFile.Close() // ensure output file is closed after processing
-				runnable.SetOutputPath(outFile.Name())
-
-				// encrypt PDF from input file to output file
-				conf := model.NewDefaultConfiguration()
-				conf.OwnerPW = e.OwnerPassword
-				conf.UserPW = e.UserPassword
-				conf.Permissions = e.Permissions.Get()
-				if err := e.Encryption.SetConf(conf); err != nil {
-					return fmt.Errorf("set encryption configuration: %w", err)
-				}
-				if err := api.Encrypt(inputFile, outFile, conf); err != nil {
-					runnable.AppendCleanup(func() error { return os.Remove(outFile.Name()) })
-					return fmt.Errorf("pdf encrypt '%s' => '%s': %w", inputFile.Name(), outFile.Name(), err)
-				}
-				return nil
-			}
-
-			runnable.SetRun(runnableRun)
-			outChan <- *runnable
-			return nil
+func (e *Encrypt) GetRunnable() <-chan *core.Runnable {
+	return e.MapCommand.GetRunnable(func(inFile *os.File, outFile *os.File, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
+		// encrypt PDF from input file to output file
+		conf := model.NewDefaultConfiguration()
+		conf.OwnerPW = e.OwnerPassword
+		conf.UserPW = e.UserPassword
+		conf.Permissions = e.Permissions.Get()
+		if err := e.Encryption.SetConf(conf); err != nil {
+			return fmt.Errorf("set encryption configuration: %w", err)
 		}
-
-		// process input files
-		if err := env.OpenInputFiles(processFileFunc, e.InputFiles...); err != nil {
-			runnable := core.NewRunnable()
-			runnable.SetError(fmt.Errorf("pdf encrypt: %w", err))
-			outChan <- *runnable
+		logger.Infof(
+			"Encrypting '%s' => '%s' (%s) with permissions: %s\n",
+			inFile.Name(), outFile.Name(), e.Encryption.String(), e.Permissions.String(),
+		)
+		if err := api.Encrypt(inFile, outFile, conf); err != nil {
+			runnable.AppendCleanup(func() error { return os.Remove(outFile.Name()) })
+			return fmt.Errorf("pdf encrypt '%s' => '%s': %w", inFile.Name(), outFile.Name(), err)
 		}
-	}()
-
-	return outChan
+		return nil
+	})
 }
