@@ -197,7 +197,6 @@ func (e *Encrypt) GetRunnable() <-chan *core.Runnable {
 			inFile.Name(), outFile.Name(), e.Encryption.String(), e.Permissions.String(),
 		)
 		if err := api.Encrypt(inFile, outFile, conf); err != nil {
-			runnable.AppendCleanup(func() error { return os.Remove(outFile.Name()) })
 			return fmt.Errorf("pdf encrypt '%s' => '%s': %w", inFile.Name(), outFile.Name(), err)
 		}
 		return nil

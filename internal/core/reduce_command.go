@@ -99,6 +99,7 @@ func (r *ReduceCommand) GetRunnable(
 			runnable.SetError(fmt.Errorf("open output file: %w", err))
 			return
 		}
+		runnable.SetOutputPath(outFile.Name())
 
 		// call the specific command's run method
 		runFunc := func(updateProgress interfaces.ProgressIncrement) error {

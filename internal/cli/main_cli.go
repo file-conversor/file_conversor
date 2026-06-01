@@ -55,8 +55,9 @@ func (c *MainCLI) ExecuteRunnable(runnableChan <-chan *core.Runnable, total int6
 		return tp.Wait()
 	}
 
-	// progress bar with spinner style (since we don't know total pages in advance)
-	p := progress.NewProgressBarMgr(MAX_WORKERS)
+	// progress bar
+	fps := 15 // Hz (refresh rate) - 60 is too fast
+	p := progress.NewProgressBarMgr(MAX_WORKERS, fps)
 	for runnable := range runnableChan {
 		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), total, true)
 		p.AddBarOrSpinner(barCfg, runnable.Run)

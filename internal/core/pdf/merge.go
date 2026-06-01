@@ -60,9 +60,9 @@ func (m *Merge) GetRunnable() <-chan *core.Runnable {
 			"Merging files to '%s'\n",
 			outFile.Name(),
 		)
+
 		inIos := env.ToIoReadSeekers(inFiles)
 		if err := api.MergeRaw(inIos, outFile, false, nil); err != nil {
-			runnable.AppendCleanup(func() error { return os.Remove(outFile.Name()) })
 			return fmt.Errorf("pdf merge: %w", err)
 		}
 		return nil

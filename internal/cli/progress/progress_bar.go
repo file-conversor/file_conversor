@@ -28,7 +28,12 @@ type ProgressBarCfg struct {
 func NewBarCfg(name string, total int64, removeOnComplete bool) *ProgressBarCfg {
 	progressBarCfg := &ProgressBarCfg{}
 
-	nameShort := name[:min(20, len(name))] // truncate name if too long
+	const MAX_NAME_LEN = 20
+	nameShort := name
+	if len(name) > MAX_NAME_LEN {
+		nameShort = name[:MAX_NAME_LEN-3] + "..." // truncate name if too long
+	}
+
 	prependDecor := []decor.Decorator{
 		decor.Name(nameShort, decor.WC{
 			W: len(nameShort),
@@ -44,10 +49,10 @@ func NewBarCfg(name string, total int64, removeOnComplete bool) *ProgressBarCfg 
 	}
 
 	if total <= 0 {
-		progressBarCfg.total = -1 // spinner mode
-		progressBarCfg.style = defaultSpinnerStyle()
+		progressBarCfg.total = -1 // indefinite mode
+		progressBarCfg.style = defaultBouncingBarStyle()
 	} else {
-		progressBarCfg.total = total // bar mode
+		progressBarCfg.total = total // definite mode
 		progressBarCfg.style = defaultBarStyle()
 		appendDecor = append(appendDecor,
 			decor.OnCompleteOrOnAbort(decor.Name(" | ETA: "), ""),
@@ -67,37 +72,8 @@ func NewBarCfg(name string, total int64, removeOnComplete bool) *ProgressBarCfg 
 	return progressBarCfg
 }
 
-func (c *ProgressBarCfg) IsSpinner() bool {
+func (c *ProgressBarCfg) IsIndefinite() bool {
 	return c.total <= 0
-}
-
-// defaultBarStyle returns a default style for progress bars, which can be used if no custom
-// style is provided.
-func defaultBarStyle() mpb.BarStyleComposer {
-	return mpb.BarStyle().Lbound("[").Filler("█").Tip("█").Padding("░").Rbound("]")
-}
-
-// defaultSpinnerStyle returns a default style for spinner bars.
-// The spinner will cycle through the specified characters to indicate progress.
-func defaultSpinnerStyle() mpb.SpinnerStyleComposer {
-	return mpb.SpinnerStyle(
-		">==============<",
-		"=>============<=",
-		"==>==========<==",
-		"===>========<===",
-		"====>======<====",
-		"=====>====<=====",
-		"======>==<======",
-		"=======><=======",
-		"=======<>=======",
-		"======<==>======",
-		"=====<====>=====",
-		"====<======>====",
-		"===<========>===",
-		"==<==========>==",
-		"=<============>=",
-		"<==============>",
-	)
 }
 
 // ----------------------
@@ -120,9 +96,10 @@ type ProgressBarMgr struct {
 }
 
 // NewProgressBarMgr creates a new ProgressBarMgr with the given style.
-func NewProgressBarMgr(maxWorkers int) *ProgressBarMgr {
+func NewProgressBarMgr(maxWorkers int, fps int) *ProgressBarMgr {
 	var wg = &sync.WaitGroup{}
 	var p = mpb.New(
+		mpb.WithRefreshRate(time.Duration(1000/fps)*time.Millisecond), // set refresh rate (smooth animation)
 		mpb.WithOutput(os.Stderr), // always write to stderr for progress bars
 		mpb.WithWaitGroup(wg),     // progress manager waits for all bars to finish
 	)
@@ -130,14 +107,14 @@ func NewProgressBarMgr(maxWorkers int) *ProgressBarMgr {
 	if maxWorkers <= 0 || maxWorkers > cpuCores*2 {
 		maxWorkers = cpuCores * 2 // default to 2x CPU cores if invalid value provided
 	}
-
-	return &ProgressBarMgr{
+	progressMgr := &ProgressBarMgr{
 		maxWorkers:  maxWorkers,
 		workersChan: make(chan struct{}, maxWorkers),
 		wg:          wg,
 		p:           p,
 		finished:    false,
 	}
+	return progressMgr
 }
 
 // adds a new progress bar / spinner with the given name and total work units,
@@ -203,7 +180,7 @@ func (m *ProgressBarMgr) AddBarOrSpinner(barCfg *ProgressBarCfg, work func(inter
 		//    which updates the progress bar accordingly
 		workErr = work(func(delta int64) {
 			// set the current progress
-			if !barCfg.IsSpinner() {
+			if !barCfg.IsIndefinite() {
 				bar.EwmaIncrBy(int(delta), time.Since(start))
 				start = time.Now() // only reset when used
 			}
