@@ -5,10 +5,8 @@ package core
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/file-conversor/file_conversor/internal/core/flags"
-	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
 )
 
@@ -37,7 +35,7 @@ func (m *FilterCommand) Validate(formats interfaces.FormatInterface) error {
 // Processes the input files and creates a Runnable for each file to be processed.
 func (m *FilterCommand) GetRunnable(
 	run func(
-		inFile *os.File,
+		inFile string,
 		runnable *Runnable,
 		updateProgress interfaces.ProgressIncrement,
 	) error,
@@ -47,12 +45,11 @@ func (m *FilterCommand) GetRunnable(
 	go func() {
 		defer close(outChan) // close channel when done
 
-		processFileFunc := func(inFile *os.File, cleanup func() error) error {
+		for _, inFile := range m.InputFiles {
 			runnable := NewRunnable()
-			runnable.AppendCleanup(cleanup) // ensure cleanup is called after processing
 
 			// use input file path as output path (for check validation messages)
-			runnable.SetOutputPath(inFile.Name())
+			runnable.SetOutputPath(inFile)
 
 			// call the specific command's run method
 			runFunc := func(updateProgress interfaces.ProgressIncrement) error {
@@ -61,17 +58,6 @@ func (m *FilterCommand) GetRunnable(
 			runnable.SetRun(runFunc)
 
 			// send runnable to be executed
-			outChan <- runnable
-			return nil
-		}
-
-		// process input files
-		if err := env.OpenInputFiles(processFileFunc, m.InputFiles...); err != nil {
-			// if there's an error opening input files, send a runnable with the error
-			runnable := NewRunnable()
-			runnable.SetError(err)
-
-			// send runnable with error to be executed
 			outChan <- runnable
 		}
 	}()

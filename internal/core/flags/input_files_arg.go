@@ -13,10 +13,10 @@ import (
 )
 
 type InputFilesArg struct {
-	InputFiles  []string // input file paths (use - for stdin), can be dirs or .pdf files
-	Recurse     bool     // recurse into subdirectories when input is a directory
-	BatchFile   string   // batch file containing list of input files (one per line)
-	AcceptStdin bool     // whether to accept stdin as input (set by command implementations)
+	InputFiles []string // input file paths (use - for stdin), can be dirs or .pdf files
+	Recurse    bool     // recurse into subdirectories when input is a directory
+	BatchFile  string   // batch file containing list of input files (one per line)
+	// AcceptStdin bool     // whether to accept stdin as input (set by command implementations)
 }
 
 func (i *InputFilesArg) Parse(formats interfaces.FormatInterface) error {
@@ -52,7 +52,7 @@ func (i *InputFilesArg) Parse(formats interfaces.FormatInterface) error {
 
 func (i *InputFilesArg) Validate(formats interfaces.FormatInterface) error {
 	return errors.Join(
-		validation.AllowOrDenyInputStdin(i.AcceptStdin, i.InputFiles...),
+		validation.AllowOrDenyInputStdin(false, i.InputFiles...),
 		validation.InputFileExt(i.InputFiles, formats.In()...),
 		validation.InputPathExists(i.InputFiles...),
 		validation.IsNotEmpty("input", i.InputFiles...),

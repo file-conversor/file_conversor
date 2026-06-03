@@ -8,7 +8,6 @@ import (
 	"os"
 
 	"github.com/file-conversor/file_conversor/internal/core/flags"
-	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
@@ -41,8 +40,8 @@ func (m *MapCommand) Validate(formats interfaces.FormatInterface) error {
 // Processes the input files and creates a Runnable for each file to be processed.
 func (m *MapCommand) GetRunnable(
 	run func(
-		inFile *os.File,
-		outFile *os.File,
+		inFile string,
+		outFile string,
 		runnable *Runnable,
 		updateProgress interfaces.ProgressIncrement,
 	) error,
@@ -52,17 +51,15 @@ func (m *MapCommand) GetRunnable(
 	go func() {
 		defer close(outChan) // close channel when done
 
-		processFileFunc := func(inFile *os.File, cleanup func() error) error {
+		for _, inFile := range m.InputFiles {
 			runnable := NewRunnable()
-			runnable.AppendCleanup(cleanup) // ensure cleanup is called after processing
-
-			// open output file
-			outFile, err := m.GetOutputFile(inFile.Name())
+			outFile, err := m.GetOutputPath(inFile)
 			if err != nil {
-				return fmt.Errorf("MapCommand - open output file for '%s': %w", inFile.Name(), err)
+				runnable.SetError(fmt.Errorf("MapCommand - get output filename for '%s': %w", inFile, err))
+				outChan <- runnable
+				return
 			}
-			runnable.AppendCleanup(outFile.Close) // ensure output file is closed after processing
-			runnable.SetOutputPath(outFile.Name())
+			runnable.SetOutputPath(outFile)
 
 			// call the specific command's run method
 			runFunc := func(updateProgress interfaces.ProgressIncrement) error {
@@ -70,8 +67,8 @@ func (m *MapCommand) GetRunnable(
 				if err != nil {
 					// if there's an error during processing, ensure the output file is removed
 					runnable.AppendCleanup(func() error {
-						logger.Warnf("Removing output file '%s'\n", outFile.Name())
-						return os.Remove(outFile.Name())
+						logger.Warnf("Removing output file '%s'\n", outFile)
+						return os.Remove(outFile)
 					})
 				}
 				return err
@@ -79,17 +76,6 @@ func (m *MapCommand) GetRunnable(
 			runnable.SetRun(runFunc)
 
 			// send runnable to be executed
-			outChan <- runnable
-			return nil
-		}
-
-		// process input files
-		if err := env.OpenInputFiles(processFileFunc, m.InputFiles...); err != nil {
-			// if there's an error opening input files, send a runnable with the error
-			runnable := NewRunnable()
-			runnable.SetError(err)
-
-			// send runnable with error to be executed
 			outChan <- runnable
 		}
 	}()

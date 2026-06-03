@@ -47,8 +47,8 @@ func (r *ReduceCommand) Validate(formats interfaces.FormatInterface) error {
 // Processes the input files and creates a Runnable for each file to be processed.
 func (r *ReduceCommand) GetRunnable(
 	run func(
-		inFiles []*os.File,
-		outFile *os.File,
+		inFiles []string,
+		outFile string,
 		runnable *Runnable,
 		updateProgress interfaces.ProgressIncrement,
 	) error,
@@ -57,13 +57,9 @@ func (r *ReduceCommand) GetRunnable(
 	outChan := make(chan *Runnable) // channel to send runnable to be executed
 
 	go func() {
-		defer func() {
-			outChan <- runnable // send runnable
-			close(outChan)      // close channel when done
-		}()
+		defer close(outChan) // close channel when done
 
-		var inFiles []*os.File
-		var outFile *os.File
+		var inFiles []string
 
 		// append existing output file (if exists)
 		if r.Append && env.FileExists(r.OutputFile) {
@@ -73,47 +69,29 @@ func (r *ReduceCommand) GetRunnable(
 				runnable.SetError(fmt.Errorf("copy output to tmp file: %w", err))
 				return
 			}
-			// ensure tmp file is cleaned up
-			runnable.AppendCleanup(cleanup)
-			inFiles = append(inFiles, tmpFile) // add tmp file as input to be merged with the other input files
+			tmpFile.Close()                           // close tmp file handle (we only need its path for appending to output)
+			runnable.AppendCleanup(cleanup)           // ensure tmp file is cleaned up
+			inFiles = append(inFiles, tmpFile.Name()) // add tmp file as input to be merged with the other input files
 		}
 
-		// open input files
-		err := env.OpenInputFiles(func(file *os.File, cleanup func() error) error {
-			inFiles = append(inFiles, file) // add input files to list of input io.ReadSeekers
-			runnable.AppendCleanup(cleanup)
-			return nil
-		}, r.InputFiles...)
-		if err != nil {
-			runnable.SetError(fmt.Errorf("open input files: %w", err))
-			return
-		}
-
-		// open output file
-		err = env.OpenOutputFile(func(file *os.File, cleanup func() error) error {
-			outFile = file // set output file handle for writing output
-			runnable.AppendCleanup(cleanup)
-			return nil
-		}, r.OutputFile)
-		if err != nil {
-			runnable.SetError(fmt.Errorf("open output file: %w", err))
-			return
-		}
-		runnable.SetOutputPath(outFile.Name())
+		// append input files
+		inFiles = append(inFiles, r.InputFiles...)
 
 		// call the specific command's run method
 		runFunc := func(updateProgress interfaces.ProgressIncrement) error {
-			err := run(inFiles, outFile, runnable, updateProgress)
+			err := run(inFiles, r.OutputFile, runnable, updateProgress)
 			if err != nil {
 				// if there's an error during processing, ensure the output file is removed
 				runnable.AppendCleanup(func() error {
-					logger.Warnf("Removing output file '%s'\n", outFile.Name())
-					return os.Remove(outFile.Name())
+					logger.Warnf("Removing output file '%s'\n", r.OutputFile)
+					return os.Remove(r.OutputFile)
 				})
 			}
 			return err
 		}
 		runnable.SetRun(runFunc)
+
+		outChan <- runnable // send runnable
 	}()
 	return outChan
 }

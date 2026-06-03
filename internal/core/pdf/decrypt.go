@@ -3,18 +3,14 @@
 package pdf
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/file-conversor/file_conversor/internal/core"
 	"github.com/file-conversor/file_conversor/internal/core/flags"
+	"github.com/file-conversor/file_conversor/internal/engine"
+	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/logger"
-	"github.com/pdfcpu/pdfcpu/pkg/api"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
-	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 )
 
 type Decrypt struct {
@@ -49,48 +45,30 @@ func (d *Decrypt) Validate() error {
 }
 
 func (d *Decrypt) GetRunnable() <-chan *core.Runnable {
-	return d.MapCommand.GetRunnable(func(inFile *os.File, outFile *os.File, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
-		// check if PDF is encrypted before attempting decryption, if not,
-		//     just copy the file to the output path
-		isEncrypted, err := IsPdfEncrypted(inFile.Name())
+	return d.MapCommand.GetRunnable(func(inFile string, outFile string, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
+		pdfcpuEngine := engine.NewPdfCpuEngine(
+			engine.NewPdfCpuPassword(d.Password, d.Password),
+			engine.PdfCpuEncryptionNone,
+			engine.PdfCpuPermissionsNone,
+			false,
+		)
+		isEncrypted, err := pdfcpuEngine.IsPdfEncrypted(inFile)
 		if err != nil {
-			return fmt.Errorf("check encryption status for '%s': %w", inFile.Name(), err)
+			return fmt.Errorf("check encryption status for '%s': %w", inFile, err)
 		}
 		if !isEncrypted {
-			logger.Warnf("PDF '%s' is not encrypted. Copying as-is to '%s'...", inFile.Name(), outFile.Name())
-			_, err = io.Copy(outFile, inFile)
+			logger.Warnf("PDF '%s' not encrypted. Copying as-is to '%s'...\n", inFile, outFile)
+			err := env.CopyFile(inFile, outFile)
 			if err != nil {
-				return fmt.Errorf("copy file '%s' to '%s': %w", inFile.Name(), outFile.Name(), err)
+				return fmt.Errorf("copy file '%s' to '%s': %w", inFile, outFile, err)
 			}
 			return nil
 		}
 
-		// decrypt PDF from input file to output file
-		conf := model.NewDefaultConfiguration()
-		conf.OwnerPW = d.Password // pdfcpu chooses which password to use automatically
-		conf.UserPW = d.Password
-		logger.Infof(
-			"Decrypting '%s' => '%s'\n",
-			inFile.Name(), outFile.Name(),
-		)
-		if err := api.Decrypt(inFile, outFile, conf); err != nil {
-			return fmt.Errorf("pdf decrypt '%s' => '%s': %w", inFile.Name(), outFile.Name(), err)
+		logger.Infof("Decrypting '%s' => '%s' ...\n", inFile, outFile)
+		if err := pdfcpuEngine.Decrypt(inFile, outFile); err != nil {
+			return fmt.Errorf("decrypt '%s' => '%s': %w", inFile, outFile, err)
 		}
 		return nil
 	})
-}
-
-func IsPdfEncrypted(inFile string) (bool, error) {
-	ctx, err := api.ReadContextFile(inFile)
-	if errors.Is(err, pdfcpu.ErrWrongPassword) {
-		return true, nil // if wrong password error, then PDF is encrypted
-	}
-	if err != nil {
-		return false, err
-	}
-
-	if ctx.Encrypt != nil {
-		return true, nil
-	}
-	return false, nil
 }

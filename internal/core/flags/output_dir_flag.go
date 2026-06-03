@@ -16,11 +16,11 @@ import (
 )
 
 type OutputDirFlag struct {
-	Overwrite    bool   // overwrite output file if it exists (default: false)
-	OutputDir    string // output dir path (default: current dir)
-	Suffix       string // suffix to add to output file stem (default: "")
-	Format       string // output file format (e.g. ".pdf")
-	AcceptStdout bool   // whether to accept stdout as output dir
+	Overwrite bool   // overwrite output file if it exists (default: false)
+	OutputDir string // output dir path (default: current dir)
+	Suffix    string // suffix to add to output file stem (default: "")
+	Format    string // output file format (e.g. ".pdf")
+	// AcceptStdout bool   // whether to accept stdout as output dir
 }
 
 func (o *OutputDirFlag) Parse(formats interfaces.FormatInterface) error {
@@ -31,7 +31,7 @@ func (o *OutputDirFlag) Parse(formats interfaces.FormatInterface) error {
 
 func (o *OutputDirFlag) Validate(formats interfaces.FormatInterface) error {
 	return errors.Join(
-		validation.AllowOrDenyOutputStdout(o.AcceptStdout, o.OutputDir),
+		validation.AllowOrDenyOutputStdout(false, o.OutputDir),
 		validation.OutputFileExt(o.Format, formats.Out()...),
 		validation.OutputValidSuffix(o.Suffix),
 		validation.OutputDirExists(o.OutputDir),

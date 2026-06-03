@@ -31,17 +31,15 @@ func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
 	cmd := pdf.NewDecrypt(
 		c.Password,
 		core_flags.OutputDirFlag{
-			OutputDir:    c.OutputDir,
-			Overwrite:    ctx.Overwrite,
-			Suffix:       c.Suffix,
-			Format:       ".pdf",
-			AcceptStdout: true,
+			OutputDir: c.OutputDir,
+			Overwrite: ctx.Overwrite,
+			Suffix:    c.Suffix,
+			Format:    ".pdf",
 		},
 		core_flags.InputFilesArg{
-			InputFiles:  c.InputFiles,
-			Recurse:     c.Recurse,
-			BatchFile:   c.BatchFile,
-			AcceptStdin: true,
+			InputFiles: c.InputFiles,
+			Recurse:    c.Recurse,
+			BatchFile:  c.BatchFile,
 		},
 	)
 	logger.Infof("Decrypting input files into folder '%s'\n", c.OutputDir)

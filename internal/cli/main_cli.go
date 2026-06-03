@@ -37,9 +37,6 @@ type MainCLI struct {
 func (c *MainCLI) Help() string {
 	return `
 Example usage:
-  # process stdin and write to output.pdf (stdin supports single file streaming ONLY)
-  file_conversor pdf decrypt input.pdf | file_conversor pdf merge -o - > output.pdf
-  
   # process multiple inputs and write to output.pdf (no progress, overwrite output)
   file_conversor -N -O pdf merge -o output.pdf input1.pdf input2.pdf input3.pdf
 `

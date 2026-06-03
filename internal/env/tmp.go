@@ -3,7 +3,6 @@
 package env
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -20,10 +19,8 @@ func CopyToTmpFileRaw(pattern string, in io.Reader) (*os.File, func() error, err
 		return nil, noop, fmt.Errorf("create tmp file: %w", err)
 	}
 	callback := func() error {
-		return errors.Join(
-			tmp.Close(),
-			os.Remove(tmp.Name()),
-		)
+		tmp.Close()
+		return RemoveIfExists(tmp.Name())
 	}
 	// copy input to tmp file
 	if _, err = io.Copy(tmp, in); err != nil {

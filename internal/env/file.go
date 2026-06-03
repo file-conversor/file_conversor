@@ -11,6 +11,13 @@ import (
 	"strings"
 )
 
+func RemoveIfExists(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return os.Remove(path)
+	}
+	return nil
+}
+
 func EnsureParentDirExists(path string) error {
 	dir := Dirname(path)
 	if err := MkdirAll(dir); err != nil {
@@ -80,7 +87,10 @@ func CopyFile(src, dst string) error {
 	}
 
 	_, err = io.Copy(dstFile, srcFile)
-	return err
+	if err != nil {
+		return fmt.Errorf("copy file - copy data: %w", err)
+	}
+	return nil
 }
 
 func CloseFiles(res ...*os.File) error {

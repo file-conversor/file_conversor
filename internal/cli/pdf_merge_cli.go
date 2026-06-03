@@ -30,15 +30,13 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 	cmd := pdf.NewMerge(
 		c.Append,
 		core_flags.OutputFileFlag{
-			OutputFile:   c.OutputFile,
-			Overwrite:    ctx.Overwrite,
-			AcceptStdout: true,
+			OutputFile: c.OutputFile,
+			Overwrite:  ctx.Overwrite,
 		},
 		core_flags.InputFilesArg{
-			InputFiles:  c.InputFiles,
-			Recurse:     c.Recurse,
-			BatchFile:   c.BatchFile,
-			AcceptStdin: true,
+			InputFiles: c.InputFiles,
+			Recurse:    c.Recurse,
+			BatchFile:  c.BatchFile,
 		},
 	)
 	logger.Infof("Merging input files into '%s' (append: %t)\n", c.OutputFile, c.Append)

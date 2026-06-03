@@ -46,7 +46,7 @@ Run ``file_conversor -h`` to explore all available commands and options.
 - Manipulate various media formats with a single tool
 - Integrate seamlessly with scripting workflows
 - Configure advanced file processing pipelines
-- Parallelize tasks for massive multi-threaded processing
+- Parallelize tasks for multi-threaded processing
 
 ## Features
 

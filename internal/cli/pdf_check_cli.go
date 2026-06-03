@@ -31,10 +31,9 @@ func (c *PdfCheckCLI) Run(ctx *MainCLI) error {
 	cmd := pdf.NewCheck(
 		c.Password,
 		core_flags.InputFilesArg{
-			InputFiles:  c.InputFiles,
-			Recurse:     c.Recurse,
-			BatchFile:   c.BatchFile,
-			AcceptStdin: true,
+			InputFiles: c.InputFiles,
+			Recurse:    c.Recurse,
+			BatchFile:  c.BatchFile,
 		},
 	)
 	return ctx.ExecuteCmd(cmd, 0)

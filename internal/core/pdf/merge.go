@@ -3,15 +3,11 @@
 package pdf
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/file-conversor/file_conversor/internal/core"
 	"github.com/file-conversor/file_conversor/internal/core/flags"
-	"github.com/file-conversor/file_conversor/internal/env"
+	"github.com/file-conversor/file_conversor/internal/engine"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/logger"
-	"github.com/pdfcpu/pdfcpu/pkg/api"
 )
 
 type Merge struct {
@@ -46,17 +42,15 @@ func (m *Merge) Validate() error {
 
 // Merge merges multiple PDF files into a single PDF file.
 func (m *Merge) GetRunnable() <-chan *core.Runnable {
-	return m.ReduceCommand.GetRunnable(func(inFiles []*os.File, outFile *os.File, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
+	return m.ReduceCommand.GetRunnable(func(inFiles []string, outFile string, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
 		// merge PDF files using pdfcpu api
-		logger.Infof(
-			"Merging files to '%s'\n",
-			outFile.Name(),
+		logger.Infof("Merging files to '%s'\n", outFile)
+		pdfcpuEngine := engine.NewPdfCpuEngine(
+			engine.NewPdfCpuPassword("", ""),
+			engine.PdfCpuEncryptionNone,
+			engine.PdfCpuPermissionsNone,
+			false,
 		)
-
-		inIos := env.ToIoReadSeekers(inFiles)
-		if err := api.MergeRaw(inIos, outFile, false, nil); err != nil {
-			return fmt.Errorf("pdf merge: %w", err)
-		}
-		return nil
+		return pdfcpuEngine.Merge(inFiles, outFile, m.Append)
 	})
 }
