@@ -12,8 +12,8 @@ import (
 type Config struct {
 	// Terminal
 	TerminalLevel  Level
-	TerminalFormat Format    // pretty | text | json
-	TerminalOutIo  io.Writer // default to os.Stderr
+	TerminalFormat Format // pretty | text | json
+	TerminalOutIo  io.Writer
 
 	// File
 	LogFile    string // "" = no file logging

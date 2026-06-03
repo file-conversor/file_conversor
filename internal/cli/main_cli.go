@@ -15,7 +15,7 @@ import (
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
-var logTerminalIo = env.NewIoProxy(os.Stderr)
+var terminalIo = env.NewIoProxy(os.Stderr)
 
 const UndefErrorExitCode = 1
 const CliParserExitCode = 80
@@ -46,8 +46,8 @@ Example usage:
 }
 
 func (c *MainCLI) ExecuteCmd(cmd core.CommandInterface, total int64) error {
-	const MAX_WORKERS = 0   // 0 means auto-detect and use all available CPU cores
-	const PROGRESS_FPS = 15 // Hz (refresh rate) - 60 is too fast
+	const maxWorkers = 0   // 0 means auto-detect and use all available CPU cores
+	const progressFps = 15 // Hz (refresh rate) - 60 is too fast
 
 	// parse and validate command before running any tasks to fail fast on invalid input
 	if err := errors.Join(
@@ -59,7 +59,7 @@ func (c *MainCLI) ExecuteCmd(cmd core.CommandInterface, total int64) error {
 
 	// if no progress bars, just run tasks concurrently with a thread pool
 	if c.NoProgress {
-		tp := env.NewThreadPool(MAX_WORKERS)
+		tp := env.NewThreadPool(maxWorkers)
 		for runnable := range cmd.GetRunnable() {
 			tp.AddTask(runnable.Run)
 		}
@@ -67,9 +67,9 @@ func (c *MainCLI) ExecuteCmd(cmd core.CommandInterface, total int64) error {
 	}
 
 	// progress bar
-	pm := progress.NewProgressBarMgr(MAX_WORKERS, PROGRESS_FPS)
-	logTerminalIo.RouteTo(pm)              // route log output to progress manager to avoid control character issues
-	defer logTerminalIo.RouteTo(os.Stderr) // ensure we stop routing log output when done
+	pm := progress.NewProgressBarMgr(maxWorkers, progressFps)
+	terminalIo.RouteTo(pm)              // route log output to progress manager to avoid control character issues
+	defer terminalIo.RouteTo(os.Stderr) // ensure we stop routing log output when done
 	for runnable := range cmd.GetRunnable() {
 		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), total, true)
 		pm.AddBarOrSpinner(barCfg, runnable.Run)
@@ -113,7 +113,7 @@ func Run(appName string) (int, error) {
 	)
 	// print a newline to separate error message
 	if terminate {
-		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(terminalIo, "\n")
 	}
 
 	// if if TTY is not available, disable progress bars and spinners
@@ -133,7 +133,7 @@ func Run(appName string) (int, error) {
 				err = fmt.Errorf("logging cleanup: %w", err)
 				errGrp = errors.Join(errGrp, err)
 				exitCode = LoggingCleanExitCode // special exit code for logging cleanup failure
-				fmt.Fprintf(os.Stderr, "[ERROR] - %v", err)
+				fmt.Fprintf(terminalIo, "[ERROR] - %v", err)
 			}
 		}()
 	}
@@ -169,7 +169,7 @@ func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
 		// set verbose logging to terminal
 		logMode = "Verbose"
 		logCfg.TerminalLevel = logger.DebugLevel
-		fmt.Fprintf(os.Stderr, "[DEBUG] - Logfile: %s\n", logfile)
+		fmt.Fprintf(terminalIo, "[DEBUG] - Logfile: %s\n", logfile)
 	}
 	if quiet {
 		// set quiet logging to terminal
@@ -177,7 +177,7 @@ func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
 		logCfg.TerminalLevel = logger.ErrorLevel
 	}
 	// set progress manager as terminal output to avoid control character issues
-	logCfg.TerminalOutIo = logTerminalIo
+	logCfg.TerminalOutIo = terminalIo
 	logFile, err := logger.SetupLogger(logCfg)
 	if err != nil {
 		return noop, fmt.Errorf("logger setup: %w", err)
