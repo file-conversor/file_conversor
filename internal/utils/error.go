@@ -2,7 +2,18 @@
 
 package utils
 
+import "errors"
+
 // ExtractError is a helper function to extract the error from a value that may be an error or a wrapped error.
 func ExtractError(a any, err error) error {
 	return err
+}
+
+func ErrorIsAny(err error, targets ...error) bool {
+	for _, target := range targets {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
 }

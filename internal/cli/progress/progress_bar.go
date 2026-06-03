@@ -103,29 +103,38 @@ func NewProgressBarMgr(maxWorkers int, fps int) *ProgressBarMgr {
 		mpb.WithOutput(os.Stderr), // always write to stderr for progress bars
 		mpb.WithWaitGroup(wg),     // progress manager waits for all bars to finish
 	)
-	var cpuCores = runtime.NumCPU()
-	if maxWorkers <= 0 || maxWorkers > cpuCores*2 {
-		maxWorkers = cpuCores * 2 // default to 2x CPU cores if invalid value provided
-	}
 	progressMgr := &ProgressBarMgr{
-		maxWorkers:  maxWorkers,
-		workersChan: make(chan struct{}, maxWorkers),
-		wg:          wg,
-		p:           p,
-		finished:    false,
+		wg:       wg,
+		p:        p,
+		finished: false,
 	}
+	progressMgr.SetWorkerLimit(maxWorkers) // initialize workers channel
 	return progressMgr
+}
+
+// SetWorkerLimit sets the maximum number of concurrent bars and initializes the workers channel accordingly.
+func (m *ProgressBarMgr) SetWorkerLimit(limit int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	cpuCores := runtime.NumCPU()
+	if limit <= 0 || limit > cpuCores*2 {
+		limit = cpuCores * 2 // default to 2x CPU cores if invalid value provided
+	}
+	m.maxWorkers = limit
+	m.workersChan = make(chan struct{}, limit) // reset the workers channel with new limit
 }
 
 // adds a new progress bar / spinner with the given name and total work units,
 // and starts a goroutine to execute the provided work function.
 func (m *ProgressBarMgr) AddBarOrSpinner(barCfg *ProgressBarCfg, work func(interfaces.ProgressIncrement) error) *ProgressBarMgr {
-	m.workersChan <- struct{}{} // acquire a worker slot
-
 	// lock to ensure thread safety when adding bars,
 	// and to prevent adding bars after Wait() has been called
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// acquire a worker slot
+	m.workersChan <- struct{}{}
 
 	// if the progress manager has already been waited on, it means it's done
 	// and should not accept new bars
@@ -215,4 +224,10 @@ func (m *ProgressBarMgr) Wait() error {
 	m.errChans = nil // clear errChans to release references and prevent memory leaks
 
 	return errGrp
+}
+
+func (m *ProgressBarMgr) Write(p []byte) (n int, err error) {
+	// write to the underlying progress container's output
+	// (avoid writing to stdout/stderr directly to prevent control character issues)
+	return m.p.Write(p)
 }

@@ -15,6 +15,10 @@ import (
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
+const MAX_WORKERS = 0   // 0 means auto-detect and use all available CPU cores
+const PROGRESS_FPS = 15 // Hz (refresh rate) - 60 is too fast
+var progressMgr = progress.NewProgressBarMgr(MAX_WORKERS, PROGRESS_FPS)
+
 const UndefErrorExitCode = 1
 const CliParserExitCode = 80
 const PanicExitCode = 126
@@ -44,9 +48,7 @@ Example usage:
 }
 
 func (c *MainCLI) ExecuteRunnable(runnableChan <-chan *core.Runnable, total int64) error {
-	const MAX_WORKERS = 0
-
-	// if no progress bars, just run the decrypt in a single thread and return any error
+	// if no progress bars, just run tasks concurrently with a thread pool
 	if c.NoProgress {
 		tp := env.NewThreadPool(MAX_WORKERS)
 		for runnable := range runnableChan {
@@ -56,13 +58,11 @@ func (c *MainCLI) ExecuteRunnable(runnableChan <-chan *core.Runnable, total int6
 	}
 
 	// progress bar
-	fps := 15 // Hz (refresh rate) - 60 is too fast
-	p := progress.NewProgressBarMgr(MAX_WORKERS, fps)
 	for runnable := range runnableChan {
 		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), total, true)
-		p.AddBarOrSpinner(barCfg, runnable.Run)
+		progressMgr.AddBarOrSpinner(barCfg, runnable.Run)
 	}
-	return p.Wait()
+	return progressMgr.Wait()
 }
 
 // Run executes the main CLI logic.
@@ -164,6 +164,8 @@ func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
 		logMode = "Quiet"
 		logCfg.TerminalLevel = logger.ErrorLevel
 	}
+	// set progress manager as terminal output to avoid control character issues
+	logCfg.TerminalOutIo = progressMgr
 	logFile, err := logger.SetupLogger(logCfg)
 	if err != nil {
 		return noop, fmt.Errorf("logger setup: %w", err)

@@ -12,7 +12,8 @@ import (
 type Config struct {
 	// Terminal
 	TerminalLevel  Level
-	TerminalFormat Format // pretty | text | json
+	TerminalFormat Format    // pretty | text | json
+	TerminalOutIo  io.Writer // default to os.Stderr
 
 	// File
 	LogFile    string // "" = no file logging
@@ -27,6 +28,7 @@ func DefaultConfig(logfile string) *Config {
 	return &Config{
 		TerminalLevel:  InfoLevel,    // less noise on terminal
 		TerminalFormat: PrettyFormat, // human-friendly for terminal
+		TerminalOutIo:  os.Stderr,    // log to stderr by default
 
 		LogFile:    logfile,
 		FileLevel:  DebugLevel, // capture everything to disk
@@ -40,7 +42,7 @@ func (cfg *Config) New() (*slog.Logger, io.Closer, error) {
 	var handlers []slog.Handler
 
 	// --- Terminal handler ---
-	termHandler := cfg.newHandler(os.Stderr, cfg.TerminalFormat, cfg.TerminalLevel)
+	termHandler := cfg.newHandler(cfg.TerminalOutIo, cfg.TerminalFormat, cfg.TerminalLevel)
 	handlers = append(handlers, termHandler)
 
 	// --- File handler ---
