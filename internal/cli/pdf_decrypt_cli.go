@@ -3,16 +3,10 @@
 package cli
 
 import (
-	"fmt"
-
 	core_flags "github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/core/pdf"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
-
-// -------------
-// DECRYPT COMMAND
-// -------------
 
 type PdfDecryptCLI struct {
 	InputFiles []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
@@ -34,8 +28,7 @@ Example usage:
 }
 
 func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
-	// create decrypt function to run with or without progress bar
-	cmd, err := pdf.NewDecrypt(
+	cmd := pdf.NewDecrypt(
 		c.Password,
 		core_flags.OutputDirFlag{
 			OutputDir:    c.OutputDir,
@@ -51,11 +44,6 @@ func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
 			AcceptStdin: true,
 		},
 	)
-	if err != nil {
-		return fmt.Errorf("pdf decrypt: %w", err)
-	}
-
-	// if no progress bars, just run the decrypt in a single thread and return any error
 	logger.Infof("Decrypting input files into folder '%s'\n", c.OutputDir)
-	return ctx.ExecuteRunnable(cmd.GetRunnable(), 0)
+	return ctx.ExecuteCmd(cmd, 0)
 }

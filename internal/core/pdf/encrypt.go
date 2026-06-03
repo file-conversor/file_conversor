@@ -3,7 +3,6 @@
 package pdf
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -135,23 +134,14 @@ type Encrypt struct {
 	core.MapCommand                     // MapCommand: batch input file => output directory
 }
 
-func (e *Encrypt) In() []string {
-	return []string{".pdf"}
-}
-
-func (e *Encrypt) Out() []string {
-	return []string{".pdf"}
-}
-
 func NewEncrypt(
 	userPassword, ownerPassword string,
 	outputDirFlag flags.OutputDirFlag,
 	inputsArg flags.InputFilesArg,
 	encryption EncryptionAlgorithm,
 	permissions EncryptPermissions,
-) (*Encrypt, error) {
-
-	command := &Encrypt{
+) *Encrypt {
+	return &Encrypt{
 		UserPassword:  userPassword,
 		OwnerPassword: ownerPassword,
 		Encryption:    encryption,
@@ -161,13 +151,14 @@ func NewEncrypt(
 			InputFilesArg: inputsArg,
 		},
 	}
-	if err := errors.Join(
-		command.Parse(),
-		command.Validate(),
-	); err != nil {
-		return nil, err
-	}
-	return command, nil
+}
+
+func (e *Encrypt) In() []string {
+	return []string{".pdf"}
+}
+
+func (e *Encrypt) Out() []string {
+	return []string{".pdf"}
 }
 
 func (e *Encrypt) Parse() error {

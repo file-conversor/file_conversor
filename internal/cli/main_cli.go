@@ -15,9 +15,7 @@ import (
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
-const MAX_WORKERS = 0   // 0 means auto-detect and use all available CPU cores
-const PROGRESS_FPS = 15 // Hz (refresh rate) - 60 is too fast
-var progressMgr = progress.NewProgressBarMgr(MAX_WORKERS, PROGRESS_FPS)
+var logTerminalIo = env.NewIoProxy(os.Stderr)
 
 const UndefErrorExitCode = 1
 const CliParserExitCode = 80
@@ -47,22 +45,36 @@ Example usage:
 `
 }
 
-func (c *MainCLI) ExecuteRunnable(runnableChan <-chan *core.Runnable, total int64) error {
+func (c *MainCLI) ExecuteCmd(cmd core.CommandInterface, total int64) error {
+	const MAX_WORKERS = 0   // 0 means auto-detect and use all available CPU cores
+	const PROGRESS_FPS = 15 // Hz (refresh rate) - 60 is too fast
+
+	// parse and validate command before running any tasks to fail fast on invalid input
+	if err := errors.Join(
+		cmd.Parse(),
+		cmd.Validate(),
+	); err != nil {
+		return err
+	}
+
 	// if no progress bars, just run tasks concurrently with a thread pool
 	if c.NoProgress {
 		tp := env.NewThreadPool(MAX_WORKERS)
-		for runnable := range runnableChan {
+		for runnable := range cmd.GetRunnable() {
 			tp.AddTask(runnable.Run)
 		}
 		return tp.Wait()
 	}
 
 	// progress bar
-	for runnable := range runnableChan {
+	pm := progress.NewProgressBarMgr(MAX_WORKERS, PROGRESS_FPS)
+	logTerminalIo.RouteTo(pm)              // route log output to progress manager to avoid control character issues
+	defer logTerminalIo.RouteTo(os.Stderr) // ensure we stop routing log output when done
+	for runnable := range cmd.GetRunnable() {
 		barCfg := progress.NewBarCfg(env.BaseName(runnable.OutputPath), total, true)
-		progressMgr.AddBarOrSpinner(barCfg, runnable.Run)
+		pm.AddBarOrSpinner(barCfg, runnable.Run)
 	}
-	return progressMgr.Wait()
+	return pm.Wait()
 }
 
 // Run executes the main CLI logic.
@@ -165,7 +177,7 @@ func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
 		logCfg.TerminalLevel = logger.ErrorLevel
 	}
 	// set progress manager as terminal output to avoid control character issues
-	logCfg.TerminalOutIo = progressMgr
+	logCfg.TerminalOutIo = logTerminalIo
 	logFile, err := logger.SetupLogger(logCfg)
 	if err != nil {
 		return noop, fmt.Errorf("logger setup: %w", err)

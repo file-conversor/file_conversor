@@ -22,6 +22,16 @@ type Decrypt struct {
 	core.MapCommand        // MapCommand: batch input file => output directory
 }
 
+func NewDecrypt(password string, outputDirFlag flags.OutputDirFlag, inputsArg flags.InputFilesArg) *Decrypt {
+	return &Decrypt{
+		Password: password,
+		MapCommand: core.MapCommand{
+			OutputDirFlag: outputDirFlag,
+			InputFilesArg: inputsArg,
+		},
+	}
+}
+
 func (d *Decrypt) In() []string {
 	return []string{".pdf"}
 }
@@ -38,28 +48,11 @@ func (d *Decrypt) Validate() error {
 	return d.MapCommand.Validate(d) // pass Decrypt as FormatInterface to MapCommand
 }
 
-func NewDecrypt(password string, outputDirFlag flags.OutputDirFlag, inputsArg flags.InputFilesArg) (*Decrypt, error) {
-	command := &Decrypt{
-		Password: password,
-		MapCommand: core.MapCommand{
-			OutputDirFlag: outputDirFlag,
-			InputFilesArg: inputsArg,
-		},
-	}
-	if err := errors.Join(
-		command.Parse(),
-		command.Validate(),
-	); err != nil {
-		return nil, err
-	}
-	return command, nil
-}
-
 func (d *Decrypt) GetRunnable() <-chan *core.Runnable {
 	return d.MapCommand.GetRunnable(func(inFile *os.File, outFile *os.File, runnable *core.Runnable, updateProgress interfaces.ProgressIncrement) error {
 		// check if PDF is encrypted before attempting decryption, if not,
 		//     just copy the file to the output path
-		isEncrypted, err := d.IsPdfEncrypted(inFile.Name())
+		isEncrypted, err := IsPdfEncrypted(inFile.Name())
 		if err != nil {
 			return fmt.Errorf("check encryption status for '%s': %w", inFile.Name(), err)
 		}
@@ -87,7 +80,7 @@ func (d *Decrypt) GetRunnable() <-chan *core.Runnable {
 	})
 }
 
-func (d *Decrypt) IsPdfEncrypted(inFile string) (bool, error) {
+func IsPdfEncrypted(inFile string) (bool, error) {
 	ctx, err := api.ReadContextFile(inFile)
 	if errors.Is(err, pdfcpu.ErrWrongPassword) {
 		return true, nil // if wrong password error, then PDF is encrypted

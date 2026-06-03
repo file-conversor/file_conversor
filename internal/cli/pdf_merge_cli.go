@@ -3,16 +3,10 @@
 package cli
 
 import (
-	"fmt"
-
 	core_flags "github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/core/pdf"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
-
-// -------------
-// MERGE COMMAND
-// -------------
 
 type PdfMergeCLI struct {
 	InputFiles []string `arg:""    optional:"" help:"Input PDF files (leave empty for stdin)."`
@@ -33,8 +27,7 @@ Example usage:
 }
 
 func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
-	// create merge function to run with or without progress bar
-	cmd, err := pdf.NewMerge(
+	cmd := pdf.NewMerge(
 		c.Append,
 		core_flags.OutputFileFlag{
 			OutputFile:   c.OutputFile,
@@ -48,11 +41,6 @@ func (c *PdfMergeCLI) Run(ctx *MainCLI) error {
 			AcceptStdin: true,
 		},
 	)
-	if err != nil {
-		return fmt.Errorf("pdf merge: %w", err)
-	}
-
-	// if no progress bars, just run the merge in a single thread and return any error
 	logger.Infof("Merging input files into '%s' (append: %t)\n", c.OutputFile, c.Append)
-	return ctx.ExecuteRunnable(cmd.GetRunnable(), 0)
+	return ctx.ExecuteCmd(cmd, 0)
 }

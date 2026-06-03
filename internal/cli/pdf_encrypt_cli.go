@@ -3,17 +3,11 @@
 package cli
 
 import (
-	"fmt"
-
 	cli_flags "github.com/file-conversor/file_conversor/internal/cli/flags"
 	core_flags "github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/core/pdf"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
-
-// -------------
-// ENCRYPT COMMAND
-// -------------
 
 type PdfEncryptCLI struct {
 	InputFiles                   []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
@@ -38,9 +32,7 @@ Example usage:
 }
 
 func (c *PdfEncryptCLI) Run(ctx *MainCLI) error {
-	encryptionAlgorithm := c.PdfEncryptionFlag.Get()
-	permissions := c.PdfPermissionsFlag.Get()
-	cmd, err := pdf.NewEncrypt(
+	cmd := pdf.NewEncrypt(
 		c.UserPassword,
 		c.OwnerPassword,
 		core_flags.OutputDirFlag{
@@ -56,14 +48,9 @@ func (c *PdfEncryptCLI) Run(ctx *MainCLI) error {
 			BatchFile:   c.BatchFile,
 			AcceptStdin: true,
 		},
-		encryptionAlgorithm,
-		permissions,
+		c.PdfEncryptionFlag.Get(),
+		c.PdfPermissionsFlag.Get(),
 	)
-	if err != nil {
-		return fmt.Errorf("pdf encrypt: %w", err)
-	}
-
-	// if no progress bars, just run the decrypt in a single thread and return any error
 	logger.Infof("Encrypting input files into folder '%s'\n", c.OutputDir)
-	return ctx.ExecuteRunnable(cmd.GetRunnable(), 0)
+	return ctx.ExecuteCmd(cmd, 0)
 }

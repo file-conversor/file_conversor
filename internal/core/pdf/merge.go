@@ -3,7 +3,6 @@
 package pdf
 
 import (
-	"errors"
 	"fmt"
 	"os"
 
@@ -19,29 +18,22 @@ type Merge struct {
 	core.ReduceCommand // ReduceCommand: input files => output file
 }
 
-func (m Merge) In() []string {
-	return []string{".pdf"}
-}
-
-func (m Merge) Out() []string {
-	return []string{".pdf"}
-}
-
-func NewMerge(append bool, outputFileFlag flags.OutputFileFlag, inputsArg flags.InputFilesArg) (*Merge, error) {
-	command := &Merge{
+func NewMerge(append bool, outputFileFlag flags.OutputFileFlag, inputsArg flags.InputFilesArg) *Merge {
+	return &Merge{
 		ReduceCommand: core.ReduceCommand{
 			Append:         append,
 			OutputFileFlag: outputFileFlag,
 			InputFilesArg:  inputsArg,
 		},
 	}
-	if err := errors.Join(
-		command.Parse(),
-		command.Validate(),
-	); err != nil {
-		return nil, err
-	}
-	return command, nil
+}
+
+func (m Merge) In() []string {
+	return []string{".pdf"}
+}
+
+func (m Merge) Out() []string {
+	return []string{".pdf"}
 }
 
 func (m *Merge) Parse() error {
