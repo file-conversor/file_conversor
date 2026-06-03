@@ -3,8 +3,6 @@
 package pdf
 
 import (
-	"fmt"
-
 	"github.com/file-conversor/file_conversor/internal/core"
 	"github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/engine"
@@ -51,9 +49,6 @@ func (d *Check) GetRunnable() <-chan *core.Runnable {
 			engine.PdfCpuPermissionsNone,
 			false,
 		)
-		if err := pdfcpuEngine.Check(inFile); err != nil {
-			return fmt.Errorf("check file '%s': %w", inFile, err)
-		}
-		return nil
+		return pdfcpuEngine.Check(inFile)
 	})
 }

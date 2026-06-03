@@ -27,7 +27,6 @@ Example usage:
   file_conversor pdf encrypt -p 1234 file1.pdf file2.pdf file3.pdf
   file_conversor pdf encrypt -p 1234 -o /path/to/output_directory -r /path/to/directory
   file_conversor pdf encrypt -p 1234 -u 5678 -o /path/to/output_directory -b /path/to/batchfile.txt
-  cat file1.pdf | file_conversor pdf encrypt -p 1234 -o - > encrypted.pdf
 `
 }
 

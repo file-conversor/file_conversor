@@ -22,7 +22,6 @@ Example usage:
   file_conversor pdf merge -o merged.pdf file1.pdf file2.pdf file3.pdf
   file_conversor pdf merge -o merged.pdf -r /path/to/directory
   file_conversor pdf merge -o - file1.pdf file2.pdf file3.pdf > merged.pdf
-  cat file1.pdf | file_conversor pdf merge -a -o merged.pdf
 `
 }
 

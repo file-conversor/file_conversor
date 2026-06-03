@@ -66,7 +66,7 @@ type PdfCpuPassword struct {
 }
 
 var (
-	PdfCpuPasswordEmpty = PdfCpuPassword{}
+	PdfCpuPasswordEmpty = &PdfCpuPassword{}
 )
 
 func NewPdfCpuPassword(ownerPw string, userPw string) *PdfCpuPassword {

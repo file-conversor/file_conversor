@@ -1,4 +1,4 @@
-// internal/cli/pdf_decrypt_cli.go
+// internal/cli/pdf_compress_cli.go
 
 package cli
 
@@ -8,27 +8,25 @@ import (
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
 
-type PdfDecryptCLI struct {
+type PdfCompressCLI struct {
 	InputFiles []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
 	OutputDir  string   `short:"o" optional:"" default:"."        help:"Output directory (use - for stdout) [default: ${default}]."`
-	Password   string   `short:"p" required:""                    help:"Password for decrypting."`
 	Recurse    bool     `short:"r" optional:""                    help:"Recurse into subdirectories."`
 	BatchFile  string   `short:"b" optional:""                    help:"Batch file with list of input files (one per line)."`
-	Suffix     string   `short:"s" optional:"" default:"_decrypt" help:"Suffix to add to output file stem [default: ${default}]."`
+	Suffix     string   `short:"s" optional:"" default:"_compress" help:"Suffix to add to output file stem [default: ${default}]."`
 }
 
-func (c *PdfDecryptCLI) Help() string {
+func (c *PdfCompressCLI) Help() string {
 	return `
 Example usage:
-  file_conversor pdf decrypt -o /path/to/output directory file1.pdf file2.pdf file3.pdf
-  file_conversor pdf decrypt -o /path/to/output directory -r /path/to/directory
-  file_conversor pdf decrypt -o /path/to/output directory -b /path/to/batchfile.txt
+  file_conversor pdf compress -o /path/to/output directory file1.pdf file2.pdf file3.pdf
+  file_conversor pdf compress -o /path/to/output directory -r /path/to/directory
+  file_conversor pdf compress -o /path/to/output directory -b /path/to/batchfile.txt
 `
 }
 
-func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
-	cmd := pdf.NewDecrypt(
-		c.Password,
+func (c *PdfCompressCLI) Run(ctx *MainCLI) error {
+	cmd := pdf.NewCompress(
 		core_flags.OutputDirFlag{
 			OutputDir: c.OutputDir,
 			Overwrite: ctx.Overwrite,
@@ -41,6 +39,6 @@ func (c *PdfDecryptCLI) Run(ctx *MainCLI) error {
 			BatchFile:  c.BatchFile,
 		},
 	)
-	logger.Infof("Decrypting input files into folder '%s'\n", c.OutputDir)
+	logger.Infof("Compressing input files into folder '%s'\n", c.OutputDir)
 	return ctx.ExecuteCmd(cmd, 0)
 }

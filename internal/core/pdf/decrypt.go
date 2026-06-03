@@ -66,9 +66,6 @@ func (d *Decrypt) GetRunnable() <-chan *core.Runnable {
 		}
 
 		logger.Infof("Decrypting '%s' => '%s' ...\n", inFile, outFile)
-		if err := pdfcpuEngine.Decrypt(inFile, outFile); err != nil {
-			return fmt.Errorf("decrypt '%s' => '%s': %w", inFile, outFile, err)
-		}
-		return nil
+		return pdfcpuEngine.Decrypt(inFile, outFile)
 	})
 }

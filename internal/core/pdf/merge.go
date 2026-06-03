@@ -46,7 +46,7 @@ func (m *Merge) GetRunnable() <-chan *core.Runnable {
 		// merge PDF files using pdfcpu api
 		logger.Infof("Merging files to '%s'\n", outFile)
 		pdfcpuEngine := engine.NewPdfCpuEngine(
-			engine.NewPdfCpuPassword("", ""),
+			engine.PdfCpuPasswordEmpty,
 			engine.PdfCpuEncryptionNone,
 			engine.PdfCpuPermissionsNone,
 			false,

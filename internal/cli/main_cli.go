@@ -102,7 +102,7 @@ func Run(appName string) (int, error) {
 		}),
 		kong.Exit(func(code int) {
 			terminate = true
-			if code != 0 {
+			if code != 0 && !isHelpRequested() {
 				exitCode = CliParserExitCode
 				errGrp = fmt.Errorf("CLI parsing")
 			}
@@ -181,4 +181,14 @@ func initLogging(appName string, verbose bool, quiet bool) (io.Closer, error) {
 	}
 	logger.Debugf("Log mode: %s\n", logMode)
 	return logFile, nil
+}
+
+func isHelpRequested() bool {
+	for _, arg := range os.Args[1:] {
+		switch arg {
+		case "-h", "--help":
+			return true
+		}
+	}
+	return false
 }
