@@ -235,3 +235,10 @@ func (e *PdfCpuEngine) Merge(inFiles []string, outFile string, append bool) erro
 	}
 	return nil
 }
+
+func (e *PdfCpuEngine) Split(inFile string, outDir string) error {
+	if err := api.SplitFile(inFile, outDir, 1, e.conf); err != nil {
+		return fmt.Errorf("pdfcpu split '%s' => '%s': %w", inFile, outDir, err)
+	}
+	return nil
+}

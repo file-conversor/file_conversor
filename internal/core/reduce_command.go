@@ -5,7 +5,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/file-conversor/file_conversor/internal/core/flags"
 	"github.com/file-conversor/file_conversor/internal/env"
@@ -84,7 +83,7 @@ func (r *ReduceCommand) GetRunnable(
 				// if there's an error during processing, ensure the output file is removed
 				runnable.AppendCleanup(func() error {
 					logger.Warnf("Removing output file '%s'\n", r.OutputFile)
-					return os.Remove(r.OutputFile)
+					return env.RemoveIfExists(r.OutputFile)
 				})
 			}
 			return err

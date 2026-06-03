@@ -9,7 +9,7 @@ import (
 )
 
 type PdfCheckCLI struct {
-	InputFiles []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
+	InputFiles []string `arg:""    optional:""                    help:"Input PDF files."`
 	Password   string   `short:"p" optional:""                    help:"Password for encrypted PDF files."`
 	Recurse    bool     `short:"r" optional:""                    help:"Recurse into subdirectories."`
 	BatchFile  string   `short:"b" optional:""                    help:"Batch file with list of input files (one per line)."`

@@ -10,7 +10,7 @@ import (
 )
 
 type PdfEncryptCLI struct {
-	InputFiles                   []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
+	InputFiles                   []string `arg:""    optional:""                    help:"Input PDF files."`
 	OutputDir                    string   `short:"o" optional:"" default:"."        help:"Output directory for encrypted files [default: ${default}]."`
 	OwnerPassword                string   `short:"p" required:""                    help:"Password for encrypting PDF files."`
 	UserPassword                 string   `short:"u" optional:""                    help:"User password for encrypted PDF files (leave empty to use owner password)."`

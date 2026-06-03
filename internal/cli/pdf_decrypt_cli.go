@@ -9,8 +9,8 @@ import (
 )
 
 type PdfDecryptCLI struct {
-	InputFiles []string `arg:""    optional:""                    help:"Input PDF files (leave empty for stdin)."`
-	OutputDir  string   `short:"o" optional:"" default:"."        help:"Output directory (use - for stdout) [default: ${default}]."`
+	InputFiles []string `arg:""    optional:""                    help:"Input PDF files."`
+	OutputDir  string   `short:"o" optional:"" default:"."        help:"Output directory [default: ${default}]."`
 	Password   string   `short:"p" required:""                    help:"Password for decrypting."`
 	Recurse    bool     `short:"r" optional:""                    help:"Recurse into subdirectories."`
 	BatchFile  string   `short:"b" optional:""                    help:"Batch file with list of input files (one per line)."`

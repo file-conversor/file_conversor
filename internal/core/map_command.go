@@ -5,9 +5,9 @@ package core
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/file-conversor/file_conversor/internal/core/flags"
+	"github.com/file-conversor/file_conversor/internal/env"
 	"github.com/file-conversor/file_conversor/internal/interfaces"
 	"github.com/file-conversor/file_conversor/internal/logger"
 )
@@ -68,10 +68,42 @@ func (m *MapCommand) GetRunnable(
 					// if there's an error during processing, ensure the output file is removed
 					runnable.AppendCleanup(func() error {
 						logger.Warnf("Removing output file '%s'\n", outFile)
-						return os.Remove(outFile)
+						return env.RemoveIfExists(outFile)
 					})
 				}
 				return err
+			}
+			runnable.SetRun(runFunc)
+
+			// send runnable to be executed
+			outChan <- runnable
+		}
+	}()
+
+	return outChan
+}
+
+// Processes the input files and creates a Runnable for each file to be processed.
+func (m *MapCommand) GetRunnableDir(
+	run func(
+		inFile string,
+		outDir string,
+		runnable *Runnable,
+		updateProgress interfaces.ProgressIncrement,
+	) error,
+) <-chan *Runnable {
+	outChan := make(chan *Runnable) // channel to send runnable to be executed
+
+	go func() {
+		defer close(outChan) // close channel when done
+
+		for _, inFile := range m.InputFiles {
+			runnable := NewRunnable()
+			runnable.SetOutputPath(m.OutputDir)
+
+			// call the specific command's run method
+			runFunc := func(updateProgress interfaces.ProgressIncrement) error {
+				return run(inFile, m.OutputDir, runnable, updateProgress)
 			}
 			runnable.SetRun(runFunc)
 

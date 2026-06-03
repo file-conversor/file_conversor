@@ -8,4 +8,5 @@ type PdfCLI struct {
 	Decrypt  PdfDecryptCLI  `cmd:""  help:"Decrypt PDF files with a password."`
 	Encrypt  PdfEncryptCLI  `cmd:""  help:"Encrypt PDF files with a password and permissions."`
 	Merge    PdfMergeCLI    `cmd:""  help:"Merge PDF files into a single PDF."`
+	Split    PdfSplitCLI    `cmd:""  help:"Split PDF files into 1-page files."`
 }

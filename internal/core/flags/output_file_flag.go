@@ -11,7 +11,7 @@ import (
 
 type OutputFileFlag struct {
 	Overwrite  bool   // overwrite output file if it exists (default: false)
-	OutputFile string // output file path (use - for stdout)
+	OutputFile string // output file path
 	// AcceptStdout bool   // accept stdout as output (set by command implementation)
 }
 

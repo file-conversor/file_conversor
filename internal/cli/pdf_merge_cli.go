@@ -9,8 +9,8 @@ import (
 )
 
 type PdfMergeCLI struct {
-	InputFiles []string `arg:""    optional:"" help:"Input PDF files (leave empty for stdin)."`
-	OutputFile string   `short:"o" required:"" help:"Output PDF file (use - for stdout)."`
+	InputFiles []string `arg:""    optional:"" help:"Input PDF files."`
+	OutputFile string   `short:"o" required:"" help:"Output PDF file."`
 	Append     bool     `short:"a" optional:"" help:"Append to output file (no effect for stdout)."`
 	Recurse    bool     `short:"r" optional:"" help:"Recurse into subdirectories."`
 	BatchFile  string   `short:"b" optional:"" help:"Batch file with list of input files (one per line)."`
